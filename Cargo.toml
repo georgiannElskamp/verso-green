@@ -67,6 +67,17 @@ bluetooth = [
     "script_traits/bluetooth",
 ]
 background_hang_monitor = ["background_hang_monitor/sampler"]
+
+# WebGL feature - enables WebGL rendering support
+# This feature enables WebGL context creation and rendering through the canvas element.
+# When enabled, WebGL content can be rendered and composited with WebRender.
+webgl = [
+    "dep:webgpu",
+    "dep:webgpu_traits",
+    "script/webgl",
+    "canvas/webgl",
+]
+
 default = ["bluetooth", "background_hang_monitor"]
 packager = ["dep:cargo-packager-resource-resolver"]
 flatpak = []
@@ -131,8 +142,9 @@ servo_config = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 servo_geometry = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 servo_url = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 webdriver_server = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
+# WebGL/WebGPU dependencies (optional, enabled by webgl feature)
+webgpu = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
+webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
 # Servo org crates
 servo-media = { git = "https://github.com/servo/media" }
 servo-media-dummy = { git = "https://github.com/servo/media" }
