@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>WebGL Context Attributes Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .pass { color: green; }
+        .fail { color: red; }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+    <h1>WebGL Context Attributes Test</h1>
+    <canvas id="canvas" width="100" height="100"></canvas>
+    <div id="results"></div>
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(test, passed, details = '') {
+            const p = document.createElement('p');
+            p.className = passed ? 'pass' : 'fail';
+            p.textContent = `[${passed ? 'PASS' : 'FAIL'}] ${test}${details ? ': ' + details : ''}`;
+            results.appendChild(p);
+            console.log(p.textContent);
+        }
+        
+        // Test 1: Default context creation
+        const canvas1 = document.getElementById('canvas');
+        const gl1 = canvas1.getContext('webgl');
+        log('Default WebGL context creation', !!gl1);
+        
+        // Test 2: Context with alpha
+        const canvas2 = document.createElement('canvas');
+        const gl2 = canvas2.getContext('webgl', { alpha: true });
+        log('Context with alpha=true', !!gl2);
+        
+        // Test 3: Context without alpha
+        const canvas3 = document.createElement('canvas');
+        const gl3 = canvas3.getContext('webgl', { alpha: false });
+        log('Context with alpha=false', !!gl3);
+        
+        // Test 4: Context with antialiasing
+        const canvas4 = document.createElement('canvas');
+        const gl4 = canvas4.getContext('webgl', { antialias: true });
+        log('Context with antialias=true', !!gl4);
+        
+        // Test 5: Context with depth buffer
+        const canvas5 = document.createElement('canvas');
+        const gl5 = canvas5.getContext('webgl', { depth: true });
+        log('Context with depth=true', !!gl5);
+        
+        // Test 6: Context with stencil buffer
+        const canvas6 = document.createElement('canvas');
+        const gl6 = canvas6.getContext('webgl', { stencil: true });
+        log('Context with stencil=true', !!gl6);
+        
+        // Test 7: Context with preserveDrawingBuffer
+        const canvas7 = document.createElement('canvas');
+        const gl7 = canvas7.getContext('webgl', { preserveDrawingBuffer: true });
+        log('Context with preserveDrawingBuffer=true', !!gl7);
+        
+        // Test 8: WebGL 2 context (if supported)
+        const canvas8 = document.createElement('canvas');
+        const gl8 = canvas8.getContext('webgl2');
+        log('WebGL 2 context creation', !!gl8, gl8 ? 'supported' : 'not supported');
+        
+        // Test 9: Get context attributes
+        if (gl1) {
+            const attrs = gl1.getContextAttributes();
+            log('getContextAttributes() returns object', !!attrs);
+            if (attrs) {
+                log('Has alpha attribute', 'alpha' in attrs, `alpha=${attrs.alpha}`);
+                log('Has antialias attribute', 'antialias' in attrs, `antialias=${attrs.antialias}`);
+                log('Has depth attribute', 'depth' in attrs, `depth=${attrs.depth}`);
+            }
+        }
+        
+        // Test 10: Multiple contexts on same canvas
+        const canvas10 = document.createElement('canvas');
+        const ctx2d = canvas10.getContext('2d');
+        const glAfter2d = canvas10.getContext('webgl');
+        log('WebGL after 2D context on same canvas', glAfter2d === null, 
+            'Expected null (canvas already has 2D context)');
+        
+        console.log('WebGL context attributes test: COMPLETE');
+    </script>
+</body>
+</html>
