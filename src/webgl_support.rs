@@ -28,6 +28,24 @@ use std::rc::Rc;
 #[cfg(feature = "webgl")]
 use gleam::gl;
 
+#[cfg(feature = "webgl")]
+fn parse_gl_major_version(version_string: &str) -> Option<u32> {
+    for token in version_string.split_whitespace() {
+        let starts_with_digit = token
+            .chars()
+            .next()
+            .map(|ch| ch.is_ascii_digit())
+            .unwrap_or(false);
+        if starts_with_digit {
+            let major_str = token.split('.').next()?;
+            if let Ok(major) = major_str.parse::<u32>() {
+                return Some(major);
+            }
+        }
+    }
+    None
+}
+
 /// WebGL configuration options
 #[derive(Clone, Debug)]
 pub struct WebGLConfig {
@@ -348,9 +366,16 @@ pub fn init_webgl(config: &WebGLConfig, gl: &dyn gl::Gl) -> WebGLInitResult {
     log::info!("Max Texture Size: {}", max_texture_size);
 
     // Check if we have sufficient OpenGL ES support
-    let supports_gles3 = version_string.contains("OpenGL ES 3")
-        || version_string.contains("4.")
-        || version_string.contains("3.");
+    let supports_gles3 = match parse_gl_major_version(&version_string) {
+        Some(major) => major >= 3,
+        None => {
+            log::warn!(
+                "Unable to parse GL major version from '{}'; assuming WebGL 1.0",
+                version_string
+            );
+            false
+        }
+    };
 
     let actual_version = if config.version == WebGLVersion::WebGL2 && supports_gles3 {
         WebGLVersion::WebGL2
@@ -360,6 +385,14 @@ pub fn init_webgl(config: &WebGLConfig, gl: &dyn gl::Gl) -> WebGLInitResult {
 
     if config.version == WebGLVersion::WebGL2 && actual_version == WebGLVersion::WebGL1 {
         log::warn!("WebGL 2.0 requested but not available, falling back to WebGL 1.0");
+    }
+
+    if let Some(entry) = is_gpu_blocked(&vendor, &renderer, &default_gpu_blocklist(), actual_version)
+    {
+        log::warn!("WebGL blocked on this GPU: {}", entry.reason);
+        return WebGLInitResult::Failed {
+            reason: format!("GPU blocked: {}", entry.reason),
+        };
     }
 
     log::info!("WebGL {:?} initialized successfully", actual_version);
@@ -580,6 +613,22 @@ mod tests {
     #[cfg(feature = "webgl")]
     mod webgl_tests {
         use super::*;
+
+        #[test]
+        fn test_parse_gl_major_version() {
+            // OpenGL version strings
+            assert_eq!(parse_gl_major_version("4.6.0 NVIDIA 535.154.05"), Some(4));
+            assert_eq!(parse_gl_major_version("3.3 Mesa 23.0.4"), Some(3));
+            assert_eq!(parse_gl_major_version("2.1 Mesa 23.0.4"), Some(2));
+            
+            // OpenGL ES version strings
+            assert_eq!(parse_gl_major_version("OpenGL ES 3.2 Mesa 23.0.4"), Some(3));
+            assert_eq!(parse_gl_major_version("OpenGL ES 2.0 Mesa 23.0.4"), Some(2));
+            
+            // Edge cases
+            assert_eq!(parse_gl_major_version(""), None);
+            assert_eq!(parse_gl_major_version("no version here"), None);
+        }
 
         #[test]
         fn test_context_state() {
