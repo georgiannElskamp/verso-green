@@ -174,6 +174,29 @@ impl RenderingContext {
         let size = self.size();
         Size2D::new(size.width, size.height)
     }
+
+    /// Get a reference to the GL interface.
+    ///
+    /// This can be used for WebGL context creation and other GL operations.
+    pub fn gl(&self) -> &Rc<dyn gl::Gl> {
+        &self.gl
+    }
+
+    /// Get a clone of the GL interface.
+    ///
+    /// This is useful when the GL interface needs to be stored elsewhere,
+    /// such as in a WebGL context manager.
+    pub fn gl_rc(&self) -> Rc<dyn gl::Gl> {
+        self.gl.clone()
+    }
+}
+
+/// WebGL rendering support implementation for RenderingContext
+#[cfg(feature = "webgl")]
+impl crate::webgl_support::WebGLRenderingSupport for RenderingContext {
+    fn gl_for_webgl(&self) -> Rc<dyn gl::Gl> {
+        self.gl_rc()
+    }
 }
 
 /// Find the config with the maximum number of samples, so our triangle will be
@@ -191,4 +214,10 @@ pub fn gl_config_picker(configs: Box<dyn Iterator<Item = Config> + '_>) -> Confi
             }
         })
         .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    // Integration tests would require a GL context which is not available in unit tests.
+    // See tests/ directory for integration tests.
 }
