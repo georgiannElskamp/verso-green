@@ -160,6 +160,8 @@ cargo-packager-resource-resolver = { version = "0.1.1", features = [
 chrono = "0.4.41"
 percent-encoding = "2.3.1"
 directories = "6.0.0"
+# Test utilities
+owo-colors = "4"
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))'.dependencies]
 notify-rust = { version = "4.11.5", features = ["images"] }
@@ -180,6 +182,11 @@ objc2-app-kit = { version = "0.2", features = [
 [[test]]
 name = "general"
 harness = false
+
+[[test]]
+name = "webgl_tests"
+harness = false
+required-features = ["webgl"]
 
 [profile.release-lto]
 inherits = "release"
