@@ -39,10 +39,10 @@ use webrender_api::units::{
 use webrender_api::{
     BorderRadius, BoxShadowClipMode, BuiltDisplayList, ClipMode, ColorF, CommonItemProperties,
     ComplexClipRegion, DirtyRect, DisplayListPayload, DocumentId, Epoch as WebRenderEpoch,
-    ExternalScrollId, FontInstanceFlags, FontInstanceKey, FontInstanceOptions, FontKey,
-    HitTestFlags, PipelineId as WebRenderPipelineId, PropertyBinding, ReferenceFrameKind,
-    RenderReasons, SampledScrollOffset, ScrollLocation, SpaceAndClipInfo, SpatialId,
-    SpatialTreeItemKey, TransformStyle,
+    ExternalScrollId, FontInstanceFlags, FontInstanceKey, FontInstanceOptions, FontKey, HitTestFlags,
+    ImageKey, PipelineId as WebRenderPipelineId, PropertyBinding, ReferenceFrameKind, RenderReasons,
+    SampledScrollOffset, ScrollLocation, SpaceAndClipInfo, SpatialId, SpatialTreeItemKey,
+    TransformStyle,
 };
 use winit::window::WindowId;
 
@@ -257,6 +257,18 @@ pub(crate) enum PaintMetricState {
     Sent,
 }
 
+#[derive(Default)]
+struct PipelineResources {
+    /// Track fonts associated with this pipeline.
+    font_keys: Vec<FontKey>,
+
+    /// Track font instances associated with this pipeline.
+    font_instance_keys: Vec<FontInstanceKey>,
+
+    /// Track images associated with this pipeline.
+    image_keys: Vec<ImageKey>,
+}
+
 struct PipelineDetails {
     /// The pipeline associated with this PipelineDetails object.
     pipeline: Option<CompositionPipeline>,
@@ -285,6 +297,9 @@ struct PipelineDetails {
     /// nodes in the compositor before forwarding new offsets to WebRender.
     scroll_tree: ScrollTree,
 
+    /// Resources that need compositor-side cleanup when a pipeline is removed.
+    resources: PipelineResources,
+
     /// The paint metric status of the first paint.
     pub first_paint_metric: PaintMetricState,
 
@@ -303,6 +318,7 @@ impl PipelineDetails {
             throttled: false,
             hit_test_items: Vec::new(),
             scroll_tree: ScrollTree::default(),
+            resources: PipelineResources::default(),
             first_paint_metric: PaintMetricState::Waiting,
             first_contentful_paint_metric: PaintMetricState::Waiting,
         }
