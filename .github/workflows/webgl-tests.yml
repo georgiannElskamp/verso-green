@@ -1,0 +1,139 @@
+name: WebGL Tests
+
+on:
+  push:
+    branches: [main, 'feat/a1-*']
+    paths:
+      - 'src/webgl_support.rs'
+      - 'src/rendering.rs'
+      - 'tests/webgl_tests.rs'
+      - 'tests/fixtures/webgl_*.html'
+      - 'Cargo.toml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/webgl_support.rs'
+      - 'src/rendering.rs'
+      - 'tests/webgl_tests.rs'
+      - 'tests/fixtures/webgl_*.html'
+      - 'Cargo.toml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  webgl-unit-tests:
+    name: WebGL Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libgles2-mesa-dev \
+            libegl1-mesa-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libwayland-dev
+            
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-action@stable
+        
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-webgl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-webgl-
+            ${{ runner.os }}-cargo-
+            
+      - name: Check compilation (without webgl)
+        run: cargo check --all-targets
+        
+      - name: Check compilation (with webgl)
+        run: cargo check --all-targets --features webgl
+        
+      - name: Run WebGL unit tests
+        run: |
+          # Use virtual framebuffer for headless testing
+          Xvfb :99 -screen 0 1024x768x24 &
+          export DISPLAY=:99
+          sleep 2
+          cargo test --features webgl --test webgl_tests -- --nocapture
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+          
+      - name: Run doc tests with webgl
+        run: cargo test --features webgl --doc
+
+  webgl-tests-macos:
+    name: WebGL Tests (macOS)
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-action@stable
+        
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-webgl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-webgl-
+            ${{ runner.os }}-cargo-
+            
+      - name: Check compilation (with webgl)
+        run: cargo check --all-targets --features webgl
+        
+      - name: Run WebGL unit tests
+        run: cargo test --features webgl --test webgl_tests -- --nocapture
+
+  webgl-tests-windows:
+    name: WebGL Tests (Windows)
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-action@stable
+        
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-webgl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-webgl-
+            ${{ runner.os }}-cargo-
+            
+      - name: Check compilation (with webgl)
+        run: cargo check --all-targets --features webgl
+        
+      - name: Run WebGL unit tests
+        run: cargo test --features webgl --test webgl_tests -- --nocapture

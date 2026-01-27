@@ -67,6 +67,17 @@ bluetooth = [
     "script_traits/bluetooth",
 ]
 background_hang_monitor = ["background_hang_monitor/sampler"]
+
+# WebGL feature - enables WebGL rendering support
+# This feature enables WebGL context creation and rendering through the canvas element.
+# When enabled, WebGL content can be rendered and composited with WebRender.
+webgl = [
+    "dep:webgpu",
+    "dep:webgpu_traits",
+    "script/webgl",
+    "canvas/webgl",
+]
+
 default = ["bluetooth", "background_hang_monitor"]
 packager = ["dep:cargo-packager-resource-resolver"]
 flatpak = []
@@ -131,8 +142,9 @@ servo_config = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 servo_geometry = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 servo_url = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
 webdriver_server = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
+# WebGL/WebGPU dependencies (optional, enabled by webgl feature)
+webgpu = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
+webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
 # Servo org crates
 servo-media = { git = "https://github.com/servo/media" }
 servo-media-dummy = { git = "https://github.com/servo/media" }
@@ -148,6 +160,8 @@ cargo-packager-resource-resolver = { version = "0.1.1", features = [
 chrono = "0.4.41"
 percent-encoding = "2.3.1"
 directories = "6.0.0"
+# Test utilities
+owo-colors = "4"
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))'.dependencies]
 notify-rust = { version = "4.11.5", features = ["images"] }
@@ -168,6 +182,11 @@ objc2-app-kit = { version = "0.2", features = [
 [[test]]
 name = "general"
 harness = false
+
+[[test]]
+name = "webgl_tests"
+harness = false
+required-features = ["webgl"]
 
 [profile.release-lto]
 inherits = "release"
