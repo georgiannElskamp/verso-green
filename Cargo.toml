@@ -163,6 +163,9 @@ directories = "6.0.0"
 # Test utilities
 owo-colors = "4"
 
+[dev-dependencies]
+mockall = "0.13"
+
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))'.dependencies]
 notify-rust = { version = "4.11.5", features = ["images"] }
 
