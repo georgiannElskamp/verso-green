@@ -40,6 +40,8 @@ pub(crate) mod storage;
 pub mod tab;
 /// Utilities
 pub(crate) mod utils;
+/// Extended Compositor Messages for PipelineId association
+pub mod extended_compositor_msg;
 
 /// WebGL support infrastructure.
 /// This module is only available when the `webgl` feature is enabled.
