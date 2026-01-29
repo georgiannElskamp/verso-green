@@ -50,6 +50,7 @@ use winit::window::WindowId;
 use crate::rendering::RenderingContext;
 use crate::touch::{TouchAction, TouchHandler};
 use crate::window::Window;
+use crate::extended_compositor_msg::ExtendedCompositorMsg;
 
 /// Data used to construct a compositor.
 pub struct InitialCompositorState {
@@ -270,6 +271,29 @@ struct PipelineResources {
     image_keys: Vec<ImageKey>,
 }
 
+// Trait to allow mocking Transaction for testing
+#[cfg_attr(test, mockall::automock)]
+pub trait TransactionTrait {
+    fn delete_font(&mut self, key: FontKey);
+    fn delete_font_instance(&mut self, key: FontInstanceKey);
+    fn delete_image(&mut self, key: ImageKey);
+}
+
+// Wrapper for webrender::Transaction to implement the trait
+pub struct TransactionWrapper<'a>(&'a mut Transaction);
+
+impl<'a> TransactionTrait for TransactionWrapper<'a> {
+    fn delete_font(&mut self, key: FontKey) {
+        self.0.delete_font(key);
+    }
+    fn delete_font_instance(&mut self, key: FontInstanceKey) {
+        self.0.delete_font_instance(key);
+    }
+    fn delete_image(&mut self, key: ImageKey) {
+        self.0.delete_image(key);
+    }
+}
+
 impl PipelineResources {
     fn add_font(&mut self, key: FontKey) {
         self.font_keys.push(key);
@@ -283,7 +307,7 @@ impl PipelineResources {
         self.image_keys.push(key);
     }
 
-    fn clear(&self, txn: &mut Transaction) {
+    fn clear(&self, txn: &mut dyn TransactionTrait) {
         for key in &self.font_keys {
             txn.delete_font(*key);
         }
@@ -794,7 +818,8 @@ impl IOCompositor {
             }
 
             CompositorMsg::AddFont(font_key, data, index) => {
-                self.add_font(font_key, index, data);
+                // TODO: Update upstream CompositorMsg to include pipeline_id
+                self.add_font(font_key, index, data, None);
             }
 
             CompositorMsg::AddSystemFont(font_key, native_handle) => {
@@ -805,7 +830,8 @@ impl IOCompositor {
             }
 
             CompositorMsg::AddFontInstance(font_instance_key, font_key, size, flags) => {
-                self.add_font_instance(font_instance_key, font_key, size, flags);
+                // TODO: Update upstream CompositorMsg to include pipeline_id
+                self.add_font_instance(font_instance_key, font_key, size, flags, None);
             }
 
             CompositorMsg::RemoveFonts(keys, instance_keys) => {
@@ -823,7 +849,8 @@ impl IOCompositor {
             }
 
             CompositorMsg::AddImage(key, desc, data) => {
-                self.add_image(key, desc, data);
+                // TODO: Update upstream CompositorMsg to include pipeline_id
+                self.add_image(key, desc, data, None);
             }
 
             CompositorMsg::GenerateFontKeys(
@@ -1247,7 +1274,7 @@ impl IOCompositor {
     fn remove_pipeline_details_recursively(&mut self, pipeline_id: PipelineId) {
         if let Some(details) = self.pipeline_details.remove(&pipeline_id) {
             let mut txn = Transaction::new();
-            details.resources.clear(&mut txn);
+            details.resources.clear(&mut TransactionWrapper(&mut txn));
             self.webrender_api
                 .send_transaction(self.webrender_document, txn);
         }
@@ -1269,7 +1296,7 @@ impl IOCompositor {
     fn remove_pipeline_root_layer(&mut self, pipeline_id: PipelineId) {
         if let Some(details) = self.pipeline_details.remove(&pipeline_id) {
             let mut txn = Transaction::new();
-            details.resources.clear(&mut txn);
+            details.resources.clear(&mut TransactionWrapper(&mut txn));
             self.webrender_api
                 .send_transaction(self.webrender_document, txn);
         }
@@ -2127,23 +2154,12 @@ impl IOCompositor {
             .send_transaction(self.webrender_document, txn);
     }
 
-    fn add_font_instance(
-        &mut self,
-        instance_key: FontInstanceKey,
-        font_key: FontKey,
-        size: f32,
-        flags: FontInstanceFlags,
-    ) {
-            .send_transaction(self.webrender_document, transaction);
-    }
-
-    fn add_image(&mut self, key: ImageKey, desc: ImageDescriptor, data: ImageData) {
-        // TODO: We need to associate this image with a pipeline.
-        // However, the AddImage message currently does not contain a PipelineId.
-        // Once we have the PipelineId, we can do:
-        // if let Some(details) = self.pipeline_details.get_mut(&pipeline_id) {
-        //     details.resources.add_image(key);
-        // }
+    fn add_image(&mut self, key: ImageKey, desc: ImageDescriptor, data: ImageData, pipeline_id: Option<PipelineId>) {
+        if let Some(id) = pipeline_id {
+            if let Some(details) = self.pipeline_details.get_mut(&id) {
+                details.resources.add_image(key);
+            }
+        }
 
         let mut txn = Transaction::new();
         txn.add_image(key, desc, data.into(), None);
@@ -2157,13 +2173,13 @@ impl IOCompositor {
         font_key: FontKey,
         size: f32,
         flags: FontInstanceFlags,
+        pipeline_id: Option<PipelineId>,
     ) {
-        // TODO: We need to associate this font instance with a pipeline.
-        // However, the AddFontInstance message currently does not contain a PipelineId.
-        // Once we have the PipelineId, we can do:
-        // if let Some(details) = self.pipeline_details.get_mut(&pipeline_id) {
-        //     details.resources.add_font_instance(instance_key);
-        // }
+        if let Some(id) = pipeline_id {
+            if let Some(details) = self.pipeline_details.get_mut(&id) {
+                details.resources.add_font_instance(instance_key);
+            }
+        }
 
         let mut transaction = Transaction::new();
         let font_instance_options = FontInstanceOptions {
@@ -2182,13 +2198,12 @@ impl IOCompositor {
             .send_transaction(self.webrender_document, transaction);
     }
 
-    fn add_font(&mut self, font_key: FontKey, index: u32, data: Arc<IpcSharedMemory>) {
-        // TODO: We need to associate this font with a pipeline.
-        // However, the AddFont message currently does not contain a PipelineId.
-        // Once we have the PipelineId, we can do:
-        // if let Some(details) = self.pipeline_details.get_mut(&pipeline_id) {
-        //     details.resources.add_font(font_key);
-        // }
+    fn add_font(&mut self, font_key: FontKey, index: u32, data: Arc<IpcSharedMemory>, pipeline_id: Option<PipelineId>) {
+        if let Some(id) = pipeline_id {
+            if let Some(details) = self.pipeline_details.get_mut(&id) {
+                details.resources.add_font(font_key);
+            }
+        }
 
         let mut transaction = Transaction::new();
         transaction.add_raw_font(font_key, (**data).into(), index);
@@ -2284,5 +2299,43 @@ struct FrameTreeId(u32);
 impl FrameTreeId {
     pub fn next(&mut self) {
         self.0 += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use webrender_api::{FontKey, FontInstanceKey, ImageKey};
+    use mockall::predicate::*;
+
+    #[test]
+    fn test_pipeline_resources_clear() {
+        let mut resources = PipelineResources::default();
+        let font_key = FontKey::new(1, 0);
+        let instance_key = FontInstanceKey::new(2, 0);
+        let image_key = ImageKey::new(3, 0);
+
+        resources.add_font(font_key);
+        resources.add_font_instance(instance_key);
+        resources.add_image(image_key);
+
+        let mut mock_txn = MockTransactionTrait::new();
+        
+        mock_txn.expect_delete_font()
+            .with(eq(font_key))
+            .times(1)
+            .return_const(());
+            
+        mock_txn.expect_delete_font_instance()
+            .with(eq(instance_key))
+            .times(1)
+            .return_const(());
+            
+        mock_txn.expect_delete_image()
+            .with(eq(image_key))
+            .times(1)
+            .return_const(());
+
+        resources.clear(&mut mock_txn);
     }
 }
