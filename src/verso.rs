@@ -9,8 +9,8 @@ use base::id::{PipelineNamespace, PipelineNamespaceId, WebViewId};
 use bluetooth::BluetoothThreadFactory;
 use bluetooth_traits::BluetoothRequest;
 use canvas::canvas_paint_thread::CanvasPaintThread;
-use compositing_traits::{
-    CompositorMsg, CompositorProxy, CrossProcessCompositorApi, WebrenderExternalImageHandlers,
+use paint_api::{
+    PaintMessage, PaintProxy, CrossProcessPaintApi, WebrenderExternalImageHandlers,
     WebrenderImageHandlerType,
 };
 use constellation::{Constellation, FromEmbedderLogger, InitialConstellationState};
@@ -277,13 +277,13 @@ impl Verso {
 
         // Create font cache thread
         let system_font_service = Arc::new(
-            SystemFontService::spawn(compositor_proxy.cross_process_compositor_api.clone())
+            SystemFontService::spawn(compositor_proxy.cross_process_paint_api.clone())
                 .to_proxy(),
         );
 
         // Create canvas thread
         let (canvas_create_sender, canvas_ipc_sender) = CanvasPaintThread::start(
-            compositor_proxy.cross_process_compositor_api.clone(),
+            compositor_proxy.cross_process_paint_api.clone(),
             system_font_service.clone(),
             public_resource_threads.clone(),
         );
@@ -1095,11 +1095,11 @@ impl EventLoopWaker for Waker {
 
 #[derive(Clone)]
 struct RenderNotifier {
-    compositor_proxy: CompositorProxy,
+    compositor_proxy: PaintProxy,
 }
 
 impl RenderNotifier {
-    pub fn new(compositor_proxy: CompositorProxy) -> RenderNotifier {
+    pub fn new(compositor_proxy: PaintProxy) -> RenderNotifier {
         RenderNotifier { compositor_proxy }
     }
 }
@@ -1119,7 +1119,7 @@ impl webrender::api::RenderNotifier for RenderNotifier {
         _frame_publish_id: FramePublishId,
     ) {
         self.compositor_proxy
-            .send(CompositorMsg::NewWebRenderFrameReady(
+            .send(PaintMessage::NewWebRenderFrameReady(
                 document_id,
                 composite_needed,
             ));
@@ -1175,16 +1175,16 @@ fn create_embedder_channel(
 
 fn create_compositor_channel(
     event_loop_waker: Box<dyn EventLoopWaker>,
-) -> (CompositorProxy, Receiver<CompositorMsg>) {
+) -> (PaintProxy, Receiver<PaintMessage>) {
     let (sender, receiver) = unbounded();
 
     let (compositor_ipc_sender, compositor_ipc_receiver) =
         ipc::channel().expect("ipc channel failure");
 
-    let cross_process_compositor_api = CrossProcessCompositorApi(compositor_ipc_sender);
-    let compositor_proxy = CompositorProxy {
+    let cross_process_paint_api = CrossProcessPaintApi(compositor_ipc_sender);
+    let compositor_proxy = PaintProxy {
         sender,
-        cross_process_compositor_api,
+        cross_process_paint_api,
         event_loop_waker,
     };
 
