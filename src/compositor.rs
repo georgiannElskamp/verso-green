@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 use base::cross_process_instant::CrossProcessInstant;
 use base::id::{PipelineId, WebViewId};
 use base::{Epoch, WebRenderEpochToU16};
-use compositing_traits::display_list::{CompositorDisplayListInfo, HitTestInfo, ScrollTree};
-use compositing_traits::{
-    CompositionPipeline, CompositorMsg, CompositorProxy, ImageUpdate, SendableFrameTree,
+use paint_api::display_list::{PaintDisplayListInfo, HitTestInfo, ScrollTree};
+use paint_api::{
+    CompositionPipeline, PaintMessage, PaintProxy, ImageUpdate, SendableFrameTree,
 };
 use constellation_traits::{
     AnimationTickType, EmbedderToConstellationMessage, PaintMetricEvent, ScrollState,
@@ -48,16 +48,16 @@ use webrender_api::{
 use winit::window::WindowId;
 
 use crate::rendering::RenderingContext;
-use crate::touch::{TouchAction, TouchHandler};
+use crate::touch::{TouchAction, TouchHandler};\
 use crate::window::Window;
 use crate::extended_compositor_msg::ExtendedCompositorMsg;
 
 /// Data used to construct a compositor.
 pub struct InitialCompositorState {
     /// A channel to the compositor.
-    pub sender: CompositorProxy,
+    pub sender: PaintProxy,
     /// A port on which messages inbound to the compositor can be received.
-    pub receiver: Receiver<CompositorMsg>,
+    pub receiver: Receiver<PaintMessage>,
     /// A channel to the constellation.
     pub constellation_chan: Sender<EmbedderToConstellationMessage>,
     /// A channel to the time profiler thread.
@@ -116,7 +116,7 @@ pub struct IOCompositor {
     webrender_document: DocumentId,
 
     /// The port on which we receive messages.
-    compositor_receiver: Receiver<CompositorMsg>,
+    compositor_receiver: Receiver<PaintMessage>,
 
     /// Tracks each webview and its current pipeline
     webviews: HashMap<WebViewId, PipelineId>,
@@ -522,7 +522,7 @@ impl IOCompositor {
 
     fn handle_browser_message(
         &mut self,
-        msg: CompositorMsg,
+        msg: PaintMessage,
         windows: &mut HashMap<WindowId, (Window, DocumentId)>,
     ) -> bool {
         match self.shutdown_state {
@@ -537,7 +537,7 @@ impl IOCompositor {
         }
 
         match msg {
-            CompositorMsg::CollectMemoryReport(sender) => {
+            PaintMessage::CollectMemoryReport(sender) => {
                 let ops =
                     wr_malloc_size_of::MallocSizeOfOps::new(servo_allocator::usable_size, None);
                 let report = self.webrender_api.report_memory(ops);
@@ -561,7 +561,7 @@ impl IOCompositor {
                 sender.send(ProcessReports::new(reports));
             }
 
-            CompositorMsg::ChangeRunningAnimationsState(
+            PaintMessage::ChangeRunningAnimationsState(
                 _webview_id,
                 pipeline_id,
                 animation_state,
@@ -569,27 +569,27 @@ impl IOCompositor {
                 self.change_running_animations_state(pipeline_id, animation_state);
             }
 
-            CompositorMsg::CreateOrUpdateWebView(frame_tree) => {
+            PaintMessage::CreateOrUpdateWebView(frame_tree) => {
                 self.create_or_update_webview(&frame_tree, windows);
                 self.send_scroll_positions_to_layout_for_pipeline(&frame_tree.pipeline.id);
             }
 
-            CompositorMsg::RemoveWebView(webview_id) => {
+            PaintMessage::RemoveWebView(webview_id) => {
                 self.remove_webview(webview_id, windows);
             }
 
-            CompositorMsg::TouchEventProcessed(_webview_id, result) => {
+            PaintMessage::TouchEventProcessed(_webview_id, result) => {
                 self.touch_handler.on_event_processed(result);
             }
 
-            CompositorMsg::CreatePng(_webview_id, _page_rect, reply) => {
+            PaintMessage::CreatePng(_webview_id, _page_rect, reply) => {
                 // TODO create image
                 if let Err(e) = reply.send(None) {
                     warn!("Sending reply to create png failed ({:?}).", e);
                 }
             }
 
-            CompositorMsg::IsReadyToSaveImageReply(is_ready) => {
+            PaintMessage::IsReadyToSaveImageReply(is_ready) => {
                 assert_eq!(
                     self.ready_to_save_state,
                     ReadyState::WaitingForConstellationReply
@@ -602,18 +602,18 @@ impl IOCompositor {
                 self.composite_if_necessary(CompositingReason::Headless);
             }
 
-            CompositorMsg::SetThrottled(_webview_id, pipeline_id, throttled) => {
+            PaintMessage::SetThrottled(_webview_id, pipeline_id, throttled) => {
                 self.pipeline_details(pipeline_id).throttled = throttled;
                 self.process_animations(true);
             }
 
-            CompositorMsg::PipelineExited(_webview_id, pipeline_id, sender) => {
+            PaintMessage::PipelineExited(_webview_id, pipeline_id, sender) => {
                 debug!("Compositor got pipeline exited: {:?}", pipeline_id);
                 self.remove_pipeline_root_layer(pipeline_id);
                 let _ = sender.send(());
             }
 
-            CompositorMsg::NewWebRenderFrameReady(_document_id, recomposite_needed) => {
+            PaintMessage::NewWebRenderFrameReady(_document_id, recomposite_needed) => {
                 self.pending_frames -= 1;
 
                 if recomposite_needed {
@@ -627,14 +627,14 @@ impl IOCompositor {
                 }
             }
 
-            CompositorMsg::LoadComplete(_) => {
+            PaintMessage::LoadComplete(_) => {
                 // If we're painting in headless mode, schedule a recomposite.
                 if self.wait_for_stable_image {
                     self.composite_if_necessary(CompositingReason::Headless);
                 }
             }
 
-            CompositorMsg::WebDriverMouseButtonEvent(webview_id, action, button, x, y) => {
+            PaintMessage::WebDriverMouseButtonEvent(webview_id, action, button, x, y) => {
                 let dppx = self.device_pixels_per_page_pixel();
                 let point = dppx.transform_point(Point2D::new(x, y));
                 self.dispatch_input_event(
@@ -647,7 +647,7 @@ impl IOCompositor {
                 );
             }
 
-            CompositorMsg::WebDriverMouseMoveEvent(webview_id, x, y) => {
+            PaintMessage::WebDriverMouseMoveEvent(webview_id, x, y) => {
                 let dppx = self.device_pixels_per_page_pixel();
                 let point = dppx.transform_point(Point2D::new(x, y));
                 self.dispatch_input_event(
@@ -656,7 +656,7 @@ impl IOCompositor {
                 );
             }
 
-            CompositorMsg::SendInitialTransaction(pipeline) => {
+            PaintMessage::SendInitialTransaction(pipeline) => {
                 let mut txn = Transaction::new();
                 txn.set_display_list(WebRenderEpoch(0), (pipeline, Default::default()));
                 self.generate_frame(&mut txn, RenderReasons::SCENE);
@@ -664,7 +664,7 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, txn);
             }
 
-            CompositorMsg::SendScrollNode(_webview_id, pipeline_id, point, external_scroll_id) => {
+            PaintMessage::SendScrollNode(_webview_id, pipeline_id, point, external_scroll_id) => {
                 let pipeline_id = pipeline_id.into();
                 let pipeline_details = match self.pipeline_details.get_mut(&pipeline_id) {
                     Some(details) => details,
@@ -696,7 +696,7 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, txn);
             }
 
-            CompositorMsg::SendDisplayList {
+            PaintMessage::SendDisplayList {
                 webview_id: _,
                 display_list_descriptor,
                 display_list_receiver,
@@ -710,7 +710,7 @@ impl IOCompositor {
                         return true;
                     }
                 };
-                let display_list_info: CompositorDisplayListInfo =
+                let display_list_info: PaintDisplayListInfo =
                     match bincode::deserialize(&display_list_info) {
                         Ok(display_list_info) => display_list_info,
                         Err(error) => {
@@ -779,7 +779,7 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            CompositorMsg::HitTest(pipeline, point, flags, sender) => {
+            PaintMessage::HitTest(pipeline, point, flags, sender) => {
                 // When a display list is sent to WebRender, it starts scene building in a
                 // separate thread and then that display list is available for hit testing.
                 // Without flushing scene building, any hit test we do might be done against
@@ -796,11 +796,11 @@ impl IOCompositor {
                 let _ = sender.send(result);
             }
 
-            CompositorMsg::GenerateImageKey(sender) => {
+            PaintMessage::GenerateImageKey(sender) => {
                 let _ = sender.send(self.webrender_api.generate_image_key());
             }
 
-            CompositorMsg::UpdateImages(updates) => {
+            PaintMessage::UpdateImages(updates) => {
                 let mut txn = Transaction::new();
                 for update in updates {
                     match update {
@@ -817,24 +817,24 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, txn);
             }
 
-            CompositorMsg::AddFont(font_key, data, index) => {
-                // TODO: Update upstream CompositorMsg to include pipeline_id
+            PaintMessage::AddFont(font_key, data, index) => {
+                // TODO: Update upstream PaintMessage to include pipeline_id
                 self.add_font(font_key, index, data, None);
             }
 
-            CompositorMsg::AddSystemFont(font_key, native_handle) => {
+            PaintMessage::AddSystemFont(font_key, native_handle) => {
                 let mut transaction = Transaction::new();
                 transaction.add_native_font(font_key, native_handle);
                 self.webrender_api
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            CompositorMsg::AddFontInstance(font_instance_key, font_key, size, flags) => {
-                // TODO: Update upstream CompositorMsg to include pipeline_id
+            PaintMessage::AddFontInstance(font_instance_key, font_key, size, flags) => {
+                // TODO: Update upstream PaintMessage to include pipeline_id
                 self.add_font_instance(font_instance_key, font_key, size, flags, None);
             }
 
-            CompositorMsg::RemoveFonts(keys, instance_keys) => {
+            PaintMessage::RemoveFonts(keys, instance_keys) => {
                 let mut transaction = Transaction::new();
 
                 for instance in instance_keys.into_iter() {
@@ -848,12 +848,12 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            CompositorMsg::AddImage(key, desc, data) => {
-                // TODO: Update upstream CompositorMsg to include pipeline_id
+            PaintMessage::AddImage(key, desc, data) => {
+                // TODO: Update upstream PaintMessage to include pipeline_id
                 self.add_image(key, desc, data, None);
             }
 
-            CompositorMsg::GenerateFontKeys(
+            PaintMessage::GenerateFontKeys(
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
@@ -867,7 +867,7 @@ impl IOCompositor {
                 let _ = result_sender.send((font_keys, font_instance_keys));
             }
 
-            CompositorMsg::GetClientWindowRect(_webview_id, response_sender) => {
+            PaintMessage::GetClientWindowRect(_webview_id, response_sender) => {
                 // TODO: use ScreenGeometry and bring webviews to compositor. https://github.com/servo/servo/pull/36223
                 if let Err(error) =
                     response_sender.send(self.device_independent_int_size_viewport().into())
@@ -876,7 +876,7 @@ impl IOCompositor {
                 }
             }
 
-            CompositorMsg::GetScreenSize(_webview_id, response_sender) => {
+            PaintMessage::GetScreenSize(_webview_id, response_sender) => {
                 // TODO: use ScreenGeometry and bring webviews to compositor. https://github.com/servo/servo/pull/36223
                 if let Err(error) =
                     response_sender.send(self.device_independent_int_size_viewport())
@@ -885,7 +885,7 @@ impl IOCompositor {
                 }
             }
 
-            CompositorMsg::GetAvailableScreenSize(_webview_id, response_sender) => {
+            PaintMessage::GetAvailableScreenSize(_webview_id, response_sender) => {
                 // TODO: use ScreenGeometry and bring webviews to compositor. https://github.com/servo/servo/pull/36223
                 if let Err(error) =
                     response_sender.send(self.device_independent_int_size_viewport())
@@ -907,17 +907,17 @@ impl IOCompositor {
     /// When that involves generating WebRender ids, our approach here is to simply
     /// generate them, but assume they will never be used, since once shutting down the
     /// compositor no longer does any WebRender frame generation.
-    fn handle_browser_message_while_shutting_down(&mut self, msg: CompositorMsg) -> bool {
+    fn handle_browser_message_while_shutting_down(&mut self, msg: PaintMessage) -> bool {
         match msg {
-            CompositorMsg::PipelineExited(_webview_id, pipeline_id, sender) => {
+            PaintMessage::PipelineExited(_webview_id, pipeline_id, sender) => {
                 debug!("Compositor got pipeline exited: {:?}", pipeline_id);
                 self.remove_pipeline_root_layer(pipeline_id);
                 let _ = sender.send(());
             }
-            CompositorMsg::GenerateImageKey(sender) => {
+            PaintMessage::GenerateImageKey(sender) => {
                 let _ = sender.send(self.webrender_api.generate_image_key());
             }
-            CompositorMsg::GenerateFontKeys(
+            PaintMessage::GenerateFontKeys(
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
@@ -930,22 +930,22 @@ impl IOCompositor {
                     .collect();
                 let _ = result_sender.send((font_keys, font_instance_keys));
             }
-            CompositorMsg::GetClientWindowRect(_, response_sender) => {
+            PaintMessage::GetClientWindowRect(_, response_sender) => {
                 if let Err(error) = response_sender.send(Default::default()) {
                     warn!("Sending response to get client window failed ({error:?}).");
                 }
             }
-            CompositorMsg::GetScreenSize(_, response_sender) => {
+            PaintMessage::GetScreenSize(_, response_sender) => {
                 if let Err(error) = response_sender.send(Default::default()) {
                     warn!("Sending response to get client window failed ({error:?}).");
                 }
             }
-            CompositorMsg::GetAvailableScreenSize(_, response_sender) => {
+            PaintMessage::GetAvailableScreenSize(_, response_sender) => {
                 if let Err(error) = response_sender.send(Default::default()) {
                     warn!("Sending response to get client window failed ({error:?}).");
                 }
             }
-            CompositorMsg::NewWebRenderFrameReady(..) => {
+            PaintMessage::NewWebRenderFrameReady(..) => {
                 // Subtract from the number of pending frames, but do not do any compositing.
                 self.pending_frames -= 1;
             }
@@ -2085,12 +2085,12 @@ impl IOCompositor {
         let mut found_recomposite_msg = false;
         while let Ok(msg) = self.compositor_receiver.try_recv() {
             match msg {
-                CompositorMsg::NewWebRenderFrameReady(..) if found_recomposite_msg => {
+                PaintMessage::NewWebRenderFrameReady(..) if found_recomposite_msg => {
                     // Only take one of duplicate NewWebRendeFrameReady messages, but do subtract
                     // one frame from the pending frames.
                     self.pending_frames -= 1;
                 }
-                CompositorMsg::NewWebRenderFrameReady(..) => {
+                PaintMessage::NewWebRenderFrameReady(..) => {
                     found_recomposite_msg = true;
                     compositor_messages.push(msg)
                 }
@@ -2234,7 +2234,7 @@ impl IOCompositor {
 
             match pipeline.first_paint_metric {
                 // We need to check whether the current epoch is later, because
-                // CompositorMsg::SendInitialTransaction sends an
+                // PaintMessage::SendInitialTransaction sends an
                 // empty display list to WebRender which can happen before we receive
                 // the first "real" display list.
                 PaintMetricState::Seen(epoch, first_reflow) if epoch <= current_epoch => {
