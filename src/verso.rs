@@ -202,7 +202,11 @@ impl Verso {
                     use_optimized_shaders: true,
                     resource_override_path: opts.shaders_dir.clone(),
                     debug_flags,
-                precache_flags: ShaderPrecacheStrategy::default().to_webrender_flags(),
+                precache_flags: if pref!(gfx_precache_shaders) {
+                    ShaderPrecacheStrategy::default().to_webrender_flags()
+                } else {
+                    ShaderPrecacheFlags::empty()
+                },
                     enable_aa: pref!(gfx_text_antialiasing_enabled),
                     enable_subpixel_aa: pref!(gfx_subpixel_text_antialiasing_enabled),
                     allow_texture_swizzling: pref!(gfx_texture_swizzling_enabled),
