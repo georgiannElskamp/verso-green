@@ -1576,6 +1576,10 @@ impl IOCompositor {
                 // The order of these events doesn't matter, because zoom is handled by
                 // a root display list and the scroll event here is handled by the scroll
                 // applied to the content display list.
+                                // Flush scroll coalescer when switching to zoom mode
+                for event in self.scroll_coalescer.flush() {
+                    self.pending_scroll_zoom_events.push(ScrollZoomEvent::Scroll(event));
+                }
                 self.pending_scroll_zoom_events
                     .push(ScrollZoomEvent::PinchZoom(magnification));
                 self.pending_scroll_zoom_events
@@ -1659,15 +1663,26 @@ impl IOCompositor {
     }
 
     fn on_scroll_window_event(&mut self, scroll_location: ScrollLocation, cursor: DeviceIntPoint) {
-        self.pending_scroll_zoom_events
-            .push(ScrollZoomEvent::Scroll(ScrollEvent {
-                scroll_location,
-                cursor,
-                event_count: 1,
-            }));
+        let event = ScrollEvent {
+            scroll_location,
+            cursor,
+            event_count: 1,
+        };
+        // Use coalescer to batch events by cursor position
+        if let Some(coalesced_events) = self.scroll_coalescer.add_event(event) {
+            for coalesced in coalesced_events {
+                self.pending_scroll_zoom_events
+                    .push(ScrollZoomEvent::Scroll(coalesced));
+            }
+        }
     }
 
     fn process_pending_scroll_events(&mut self, _window: &Window) {
+                // Flush any remaining coalesced events before processing
+        for event in self.scroll_coalescer.flush() {
+            self.pending_scroll_zoom_events.push(ScrollZoomEvent::Scroll(event));
+        }
+
         // Batch up all scroll events into one, or else we'll do way too much painting.
         let mut combined_scroll_event: Option<ScrollEvent> = None;
         let mut _combined_magnification = 1.0;
