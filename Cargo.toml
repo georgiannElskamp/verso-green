@@ -74,7 +74,6 @@ background_hang_monitor = ["background_hang_monitor/sampler"]
 webgl = [
     "dep:webgpu",
     "dep:webgpu_traits",
-    "script/webgl",
 ]
 
 default = ["bluetooth", "background_hang_monitor"]
