@@ -237,9 +237,9 @@ jobs:
         run: |
           brew install cmake
           python -m pip install mako
-        curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-1.24.13-universal.pkg -o runtime.pkg
+                    curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-1.24.13-universal.pkg -o runtime.pkg
           sudo installer -pkg runtime.pkg -target /
-        curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-devel-1.24.13-universal.pkg -o develop.pkg
+                    curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-devel-1.24.13-universal.pkg -o develop.pkg
           sudo installer -pkg develop.pkg -target /
 
       - name: Run sccache-cache
