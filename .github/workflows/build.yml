@@ -217,10 +217,6 @@ jobs:
           - { target: aarch64-apple-darwin, os: macos-latest, arch: aarch64 }
           - { target: x86_64-apple-darwin, os: macos-15-intel, arch: x64 }
     runs-on: ${{ matrix.platform.os }}
-    env:
-      RUSTC_WRAPPER: sccache
-      CCACHE: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
@@ -242,9 +238,6 @@ jobs:
                     curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-devel-1.24.13-universal.pkg -o develop.pkg
           sudo installer -pkg develop.pkg -target /
 
-      - name: Run sccache-cache
-                if: matrix.platform.arch == 'aarch64'
-        uses: Mozilla-Actions/sccache-action@v0.0.8
 
       - name: Install Cargo Packager
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
