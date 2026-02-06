@@ -50,6 +50,7 @@ use crate::{
     config::{Config, parse_cli_args},
     download::{DownloadId, DownloadItem, UpdateDownloadState},
     storage::Storage,
+        shader_precache::ShaderPrecacheStrategy,
     webview::execute_script,
     window::Window,
 };
@@ -201,11 +202,7 @@ impl Verso {
                     use_optimized_shaders: true,
                     resource_override_path: opts.shaders_dir.clone(),
                     debug_flags,
-                    precache_flags: if pref!(gfx_precache_shaders) {
-                        ShaderPrecacheFlags::FULL_COMPILE
-                    } else {
-                        ShaderPrecacheFlags::empty()
-                    },
+                precache_flags: ShaderPrecacheStrategy::default().to_webrender_flags(),
                     enable_aa: pref!(gfx_text_antialiasing_enabled),
                     enable_subpixel_aa: pref!(gfx_subpixel_text_antialiasing_enabled),
                     allow_texture_swizzling: pref!(gfx_texture_swizzling_enabled),
