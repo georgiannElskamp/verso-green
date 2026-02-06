@@ -1,4 +1,4 @@
-use std::{
+layout::LayoutFactoryImpluse std::{
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, atomic::Ordering},
@@ -25,7 +25,7 @@ use euclid::Scale;
 use fonts::SystemFontService;
 use ipc_channel::ipc::{self, IpcSender};
 use ipc_channel::router::ROUTER;
-use layout_thread_2020;
+use layout;
 use log::{Log, Metadata, Record};
 use net::resource_thread;
 use profile;
@@ -295,7 +295,7 @@ impl Verso {
         }
 
         // Create layout factory
-        let layout_factory = Arc::new(layout_thread_2020::LayoutFactoryImpl());
+        let layout_factory = Arc::new(layout::LayoutFactoryImpl());
         let initial_state = InitialConstellationState {
             compositor_proxy: compositor_proxy.clone(),
             embedder_proxy,
