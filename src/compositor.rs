@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use base::cross_process_instant::CrossProcessInstant;
-use base::id::{PipelineId, WebViewId};
+use base::id::{PainterId, PipelineId, WebViewId};
 use base::{Epoch, WebRenderEpochToU16};
 use paint_api::display_list::{PaintDisplayListInfo, HitTestInfo, ScrollTree};
 use paint_api::{
@@ -50,7 +50,7 @@ use winit::window::WindowId;
 use crate::rendering::RenderingContext;
 use crate::touch::{TouchAction, TouchHandler};\
 use crate::window::Window;
-use crate::extended_compositor_msg::ExtendedCompositorMsg;
+
 
 /// Data used to construct a compositor.
 pub struct InitialCompositorState {
@@ -260,7 +260,7 @@ pub(crate) enum PaintMetricState {
 }
 
 #[derive(Default)]
-struct PipelineResources {
+struct PainterResources {
     /// Track fonts associated with this pipeline.
     font_keys: Vec<FontKey>,
 
@@ -294,7 +294,7 @@ impl<'a> TransactionTrait for TransactionWrapper<'a> {
     }
 }
 
-impl PipelineResources {
+impl PainterResources {
     fn add_font(&mut self, key: FontKey) {
         self.font_keys.push(key);
     }
@@ -349,7 +349,7 @@ struct PipelineDetails {
     scroll_tree: ScrollTree,
 
     /// Resources that need compositor-side cleanup when a pipeline is removed.
-    resources: PipelineResources,
+    resources: PainterResources,
 
     /// The paint metric status of the first paint.
     pub first_paint_metric: PaintMetricState,
@@ -369,7 +369,7 @@ impl PipelineDetails {
             throttled: false,
             hit_test_items: Vec::new(),
             scroll_tree: ScrollTree::default(),
-            resources: PipelineResources::default(),
+            resources: PainterResources::default(),
             first_paint_metric: PaintMetricState::Waiting,
             first_contentful_paint_metric: PaintMetricState::Waiting,
         }
@@ -613,7 +613,7 @@ impl IOCompositor {
                 let _ = sender.send(());
             }
 
-            PaintMessage::NewWebRenderFrameReady(_painter_id, _document_id, recomposite_needed) => {
+            PaintMessage::NewWebRenderFrameReady(painter_id, _document_id, recomposite_needed) => {
                 self.pending_frames -= 1;
 
                 if recomposite_needed {
@@ -800,7 +800,7 @@ impl IOCompositor {
                 let _ = sender.send(self.webrender_api.generate_image_key());
             }
 
-            PaintMessage::UpdateImages(_painter_id, updates) => {
+            PaintMessage::UpdateImages(painter_id, updates) => {
                 let mut txn = Transaction::new();
                 for update in updates {
                     match update {
@@ -817,24 +817,24 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, txn);
             }
 
-            PaintMessage::AddFont(_painter_id, font_key, data, index) => {
+            PaintMessage::AddFont(painter_id, font_key, data, index) => {
     
-                self.add_font(font_key, index, data, None);
+                self.add_font(font_key, index, data, painter_id);
             }
 
-            PaintMessage::AddSystemFont(_painter_id, font_key, native_handle) => {
+            PaintMessage::AddSystemFont(painter_id, font_key, native_handle) => {
                 let mut transaction = Transaction::new();
                 transaction.add_native_font(font_key, native_handle);
                 self.webrender_api
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            PaintMessage::AddFontInstance(_painter_id, font_instance_key, font_key, size, flags, _variations) => {
+            PaintMessage::AddFontInstance(painter_id, font_instance_key, font_key, size, flags, _variations) => {
     
-                self.add_font_instance(font_instance_key, font_key, size, flags, None);
+                self.add_font_instance(font_instance_key, font_key, size, flags, painter_id);
             }
 
-            PaintMessage::RemoveFonts(_painter_id, keys, instance_keys) => {
+            PaintMessage::RemoveFonts(painter_id, keys, instance_keys) => {
                 let mut transaction = Transaction::new();
 
                 for instance in instance_keys.into_iter() {
@@ -848,16 +848,16 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            PaintMessage::AddImage(_painter_id, key, desc, data) => {
+            PaintMessage::AddImage(painter_id, key, desc, data) => {
     
-                self.add_image(key, desc, data, None);
+                self.add_image(key, desc, data, painter_id);
             }
 
             PaintMessage::GenerateFontKeys(
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
-                            _painter_id,
+                            painter_id,
             ) => {
                 let font_keys = (0..number_of_font_keys)
                     .map(|_| self.webrender_api.generate_font_key())
@@ -922,7 +922,7 @@ impl IOCompositor {
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
-                            _painter_id,
+                            painter_id,
             ) => {
                 let font_keys = (0..number_of_font_keys)
                     .map(|_| self.webrender_api.generate_font_key())
@@ -2312,7 +2312,7 @@ mod tests {
 
     #[test]
     fn test_pipeline_resources_clear() {
-        let mut resources = PipelineResources::default();
+        let mut resources = PainterResources::default();
         let font_key = FontKey::new(1, 0);
         let instance_key = FontInstanceKey::new(2, 0);
         let image_key = ImageKey::new(3, 0);
