@@ -180,7 +180,7 @@ jobs:
 
       - name: Install Cargo Packager
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        run: cargo install cargo-packager
+        run: cargo install cargo-packager --locked
 
       - name: Build
         run: |
@@ -215,7 +215,7 @@ jobs:
       matrix:
         platform:
           - { target: aarch64-apple-darwin, os: macos-latest, arch: aarch64 }
-          - { target: x86_64-apple-darwin, os: macos-13, arch: x64 }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, arch: x64 }
     runs-on: ${{ matrix.platform.os }}
     env:
       RUSTC_WRAPPER: sccache
@@ -237,9 +237,9 @@ jobs:
         run: |
           brew install cmake
           python -m pip install mako
-          curl https://gstreamer.freedesktop.org/data/pkg/osx/1.24.6/gstreamer-1.0-1.24.6-universal.pkg -o runtime.pkg
+        curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-1.24.13-universal.pkg -o runtime.pkg
           sudo installer -pkg runtime.pkg -target /
-          curl https://gstreamer.freedesktop.org/data/pkg/osx/1.24.6/gstreamer-1.0-devel-1.24.6-universal.pkg -o develop.pkg
+        curl -L https://gstreamer.freedesktop.org/pkg/macos/1.24.13/gstreamer-1.0-devel-1.24.13-universal.pkg -o develop.pkg
           sudo installer -pkg develop.pkg -target /
 
       - name: Run sccache-cache
@@ -247,7 +247,7 @@ jobs:
 
       - name: Install Cargo Packager
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        run: cargo install cargo-packager
+        run: cargo install cargo-packager --locked
 
       - name: Build
         run: |
