@@ -27,8 +27,8 @@ modules:
     buildsystem: simple
     build-commands:
       # Install pyhton packages required by script crates
-      - pip3 install --prefix=/app --no-deps ./third_party/ply
-      - pip3 install --prefix=/app --no-deps ./third_party/WebIDL/
+        - pip3 install --prefix=/app --no-deps --no-build-isolation ./third_party/ply
+        - pip3 install --prefix=/app --no-deps --no-build-isolation ./third_party/WebIDL/
       # Desktop file
       - install -d /app/share/applications
       - install -Dm755 ./org.versotile.verso.desktop /app/share/applications/${FLATPAK_ID}.desktop
