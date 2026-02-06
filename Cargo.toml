@@ -75,7 +75,6 @@ webgl = [
     "dep:webgpu",
     "dep:webgpu_traits",
     "script/webgl",
-    "canvas/webgl",
 ]
 
 default = ["bluetooth", "background_hang_monitor"]
