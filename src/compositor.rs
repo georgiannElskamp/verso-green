@@ -805,7 +805,7 @@ impl IOCompositor {
                 for update in updates {
                     match update {
                         ImageUpdate::AddImage(key, desc, data) => {
-                            txn.add_image(key, desc, data.into(), None)
+                            txn.add_image(key, desc, data.into(), None);
                         self.painter_resources(painter_id).add_image(key);
                         }
                         ImageUpdate::DeleteImage(key) => txn.delete_image(key),
@@ -2304,7 +2304,7 @@ mod tests {
     use mockall::predicate::*;
 
     #[test]
-    fn test_pipeline_resources_clear() {
+    fn test_painter_resources_clear() {
         let mut resources = PainterResources::default();
         let font_key = FontKey::new(1, 0);
         let instance_key = FontInstanceKey::new(2, 0);
@@ -2332,5 +2332,53 @@ mod tests {
             .return_const(());
 
         resources.clear(&mut mock_txn);
+    }
+
+        #[test]
+    fn test_painter_resources_add_tracks_keys() {
+        let mut resources = PainterResources::default();
+        let font_key1 = FontKey::new(1, 0);
+        let font_key2 = FontKey::new(2, 0);
+        let instance_key = FontInstanceKey::new(3, 0);
+        let image_key = ImageKey::new(4, 0);
+
+        resources.add_font(font_key1);
+        resources.add_font(font_key2);
+        resources.add_font_instance(instance_key);
+        resources.add_image(image_key);
+
+        assert_eq!(resources.font_keys.len(), 2);
+        assert_eq!(resources.font_instance_keys.len(), 1);
+        assert_eq!(resources.image_keys.len(), 1);
+        assert!(resources.font_keys.contains(&font_key1));
+        assert!(resources.font_keys.contains(&font_key2));
+        assert!(resources.font_instance_keys.contains(&instance_key));
+        assert!(resources.image_keys.contains(&image_key));
+    }
+
+    #[test]
+    fn test_painter_resources_retain_after_remove() {
+        let mut resources = PainterResources::default();
+        let font_key1 = FontKey::new(1, 0);
+        let font_key2 = FontKey::new(2, 0);
+        let instance_key1 = FontInstanceKey::new(3, 0);
+        let instance_key2 = FontInstanceKey::new(4, 0);
+
+        resources.add_font(font_key1);
+        resources.add_font(font_key2);
+        resources.add_font_instance(instance_key1);
+        resources.add_font_instance(instance_key2);
+
+        // Simulate RemoveFonts: remove only font_key1 and instance_key1
+        let keys_to_remove = vec![font_key1];
+        let instance_keys_to_remove = vec![instance_key1];
+        resources.font_keys.retain(|k| !keys_to_remove.contains(k));
+        resources.font_instance_keys.retain(|k| !instance_keys_to_remove.contains(k));
+
+        // font_key2 and instance_key2 should remain
+        assert_eq!(resources.font_keys.len(), 1);
+        assert_eq!(resources.font_instance_keys.len(), 1);
+        assert!(resources.font_keys.contains(&font_key2));
+        assert!(resources.font_instance_keys.contains(&instance_key2));
     }
 }
