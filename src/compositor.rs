@@ -1306,7 +1306,7 @@ impl IOCompositor {
     }
 
     fn remove_pipeline_root_layer(&mut self, pipeline_id: PipelineId) {
-        self.pipeline_details.remove(&pipeline_id);
+        self.remove_pipeline_details_recursively(pipeline_id);
     }
 
     /// Change the current window of the compositor should display.
