@@ -130,7 +130,7 @@ constellation_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa
 devtools = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
 embedder_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
 fonts = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
-layout_thread_2020 = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+layout = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
 media = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
 net = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
 net_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
