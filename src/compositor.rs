@@ -613,7 +613,7 @@ impl IOCompositor {
                 let _ = sender.send(());
             }
 
-            PaintMessage::NewWebRenderFrameReady(_document_id, recomposite_needed) => {
+            PaintMessage::NewWebRenderFrameReady(_painter_id, _document_id, recomposite_needed) => {
                 self.pending_frames -= 1;
 
                 if recomposite_needed {
@@ -800,7 +800,7 @@ impl IOCompositor {
                 let _ = sender.send(self.webrender_api.generate_image_key());
             }
 
-            PaintMessage::UpdateImages(updates) => {
+            PaintMessage::UpdateImages(_painter_id, updates) => {
                 let mut txn = Transaction::new();
                 for update in updates {
                     match update {
@@ -817,24 +817,24 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, txn);
             }
 
-            PaintMessage::AddFont(font_key, data, index) => {
-                // TODO: Update upstream PaintMessage to include pipeline_id
+            PaintMessage::AddFont(_painter_id, font_key, data, index) => {
+    
                 self.add_font(font_key, index, data, None);
             }
 
-            PaintMessage::AddSystemFont(font_key, native_handle) => {
+            PaintMessage::AddSystemFont(_painter_id, font_key, native_handle) => {
                 let mut transaction = Transaction::new();
                 transaction.add_native_font(font_key, native_handle);
                 self.webrender_api
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            PaintMessage::AddFontInstance(font_instance_key, font_key, size, flags) => {
-                // TODO: Update upstream PaintMessage to include pipeline_id
+            PaintMessage::AddFontInstance(_painter_id, font_instance_key, font_key, size, flags, _variations) => {
+    
                 self.add_font_instance(font_instance_key, font_key, size, flags, None);
             }
 
-            PaintMessage::RemoveFonts(keys, instance_keys) => {
+            PaintMessage::RemoveFonts(_painter_id, keys, instance_keys) => {
                 let mut transaction = Transaction::new();
 
                 for instance in instance_keys.into_iter() {
@@ -848,8 +848,8 @@ impl IOCompositor {
                     .send_transaction(self.webrender_document, transaction);
             }
 
-            PaintMessage::AddImage(key, desc, data) => {
-                // TODO: Update upstream PaintMessage to include pipeline_id
+            PaintMessage::AddImage(_painter_id, key, desc, data) => {
+    
                 self.add_image(key, desc, data, None);
             }
 
@@ -857,6 +857,7 @@ impl IOCompositor {
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
+                            _painter_id,
             ) => {
                 let font_keys = (0..number_of_font_keys)
                     .map(|_| self.webrender_api.generate_font_key())
@@ -921,6 +922,7 @@ impl IOCompositor {
                 number_of_font_keys,
                 number_of_font_instance_keys,
                 result_sender,
+                            _painter_id,
             ) => {
                 let font_keys = (0..number_of_font_keys)
                     .map(|_| self.webrender_api.generate_font_key())
