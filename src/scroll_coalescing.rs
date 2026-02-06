@@ -2,65 +2,35 @@
 //!
 //! This module provides scroll event coalescing to reduce layout
 //! recalculations during fast scrolling while maintaining responsiveness.
+//!
+//! Implements A3.2: Scroll event coalescing logic with ScrollLocation awareness.
 
-use euclid::default::Vector2D;
+use std::collections::HashMap;
+use euclid::Scale;
 use webrender_api::units::DeviceIntPoint;
+use webrender_api::ScrollLocation;
 
-/// Maximum number of events to coalesce before forcing processing
-const MAX_COALESCED_EVENTS: u32 = 10;
+/// Maximum number of different cursor positions before forcing a flush
+const DEFAULT_MAX_COALESCED_CURSORS: usize = 8;
 
-/// Maximum time to hold coalesced events (in milliseconds)
-const MAX_COALESCE_TIME_MS: u64 = 16; // ~1 frame at 60Hz
-
-/// A coalesced scroll event combining multiple raw scroll inputs
-#[derive(Clone, Debug)]
-pub struct CoalescedScrollEvent {
-    /// Accumulated scroll delta
-    pub delta: Vector2D<f32>,
-    /// Cursor position (from most recent event)
+/// A scroll event that can be coalesced
+#[derive(Clone, Copy, Debug)]
+pub struct ScrollEvent {
+    /// Scroll by this offset, or to Start or End
+    pub scroll_location: ScrollLocation,
+    /// Apply changes to the frame at this location
     pub cursor: DeviceIntPoint,
-    /// Number of raw events coalesced into this one
+    /// The number of OS events coalesced into this one
     pub event_count: u32,
-    /// Timestamp of first event in this batch
-    pub first_event_time: std::time::Instant,
-    /// Timestamp of most recent event
-    pub last_event_time: std::time::Instant,
 }
 
-impl CoalescedScrollEvent {
-    /// Create a new coalesced event from a single scroll input
-    pub fn new(delta: Vector2D<f32>, cursor: DeviceIntPoint) -> Self {
-        let now = std::time::Instant::now();
+impl ScrollEvent {
+    /// Create a new scroll event
+    pub fn new(scroll_location: ScrollLocation, cursor: DeviceIntPoint) -> Self {
         Self {
             delta,
             cursor,
             event_count: 1,
-            first_event_time: now,
-            last_event_time: now,
-        }
-    }
-
-    /// Try to coalesce another scroll event into this one
-    ///
-    /// Returns true if coalescing was successful, false if events should be separate
-    pub fn try_coalesce(&mut self, delta: Vector2D<f32>, cursor: DeviceIntPoint) -> bool {
-        // Don't coalesce if cursor moved significantly (different scroll target)
-        let cursor_distance = ((self.cursor.x - cursor.x).pow(2)
-            + (self.cursor.y - cursor.y).pow(2)) as f32;
-        if cursor_distance > 100.0 {
-            // 10px threshold
-            return false;
-        }
-
-        // Don't coalesce if we've hit the event limit
-        if self.event_count >= MAX_COALESCED_EVENTS {
-            return false;
-        }
-
-        // Don't coalesce if too much time has passed
-        let elapsed = self.first_event_time.elapsed().as_millis() as u64;
-        if elapsed > MAX_COALESCE_TIME_MS {
-            return false;
         }
 
         // Coalesce: accumulate delta
@@ -102,243 +72,232 @@ pub struct ScrollCoalescer {
     stats: CoalescingStats,
 }
 
-/// Configuration for scroll coalescing behavior
-#[derive(Clone, Debug)]
-pub struct ScrollCoalescerConfig {
-    /// Maximum events to coalesce
-    pub max_coalesced_events: u32,
-    /// Maximum time to hold events (ms)
-    pub max_coalesce_time_ms: u64,
-    /// Cursor distance threshold for same-target detection
-    pub cursor_threshold_px: f32,
-    /// Enable coalescing (can be disabled for debugging)
-    pub enabled: bool,
+/// Coalesces scroll events by cursor position before adding to pending events.
+///
+/// Delta events at the same cursor position are combined using weighted averaging.
+/// Start/End events trigger immediate flush and are not coalesced.
+#[derive(Debug)]
+pub struct ScrollCoalescer {
+    /// Map from cursor position to accumulated scroll delta
+    pending_by_cursor: HashMap<DeviceIntPoint, ScrollEvent>,
+    /// Maximum events to coalesce before flushing
+    max_coalesced_events: usize,
 }
 
-impl Default for ScrollCoalescerConfig {
+impl Default for ScrollCoalescer {
     fn default() -> Self {
-        Self {
-            max_coalesced_events: MAX_COALESCED_EVENTS,
-            max_coalesce_time_ms: MAX_COALESCE_TIME_MS,
-            cursor_threshold_px: 10.0,
-            enabled: true,
-        }
-    }
-}
-
-/// Statistics about coalescing effectiveness
-#[derive(Clone, Debug, Default)]
-pub struct CoalescingStats {
-    /// Total raw events received
-    pub total_events: u64,
-    /// Total coalesced events emitted
-    pub coalesced_events: u64,
-    /// Events that were coalesced (not emitted separately)
-    pub events_saved: u64,
-}
-
-impl CoalescingStats {
-    /// Get the coalescing ratio (higher = more efficient)
-    pub fn coalescing_ratio(&self) -> f64 {
-        if self.total_events == 0 {
-            return 1.0;
-        }
-        self.total_events as f64 / self.coalesced_events.max(1) as f64
-    }
-
-    /// Reset statistics
-    pub fn reset(&mut self) {
-        *self = Self::default();
+        Self::new(DEFAULT_MAX_COALESCED_CURSORS)
     }
 }
 
 impl ScrollCoalescer {
-    /// Create a new scroll coalescer with default configuration
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a new scroll coalescer with custom configuration
-    pub fn with_config(config: ScrollCoalescerConfig) -> Self {
+    /// Create a new scroll coalescer with the specified threshold
+    pub fn new(max_coalesced_events: usize) -> Self {
         Self {
-            pending: Vec::new(),
-            config,
-            stats: CoalescingStats::default(),
+            pending_by_cursor: HashMap::new(),
+            max_coalesced_events,
         }
     }
 
-    /// Add a scroll event, potentially coalescing with pending events
-    pub fn add_event(&mut self, delta: Vector2D<f32>, cursor: DeviceIntPoint) {
-        self.stats.total_events += 1;
+    /// Add a scroll event, coalescing with existing events at same cursor position.
+    ///
+    /// Returns Some(events) if the coalescer should be flushed (threshold reached or special event).
+    pub fn add_event(&mut self, event: ScrollEvent) -> Option<Vec<ScrollEvent>> {
+        match event.scroll_location {
+            // Start/End events should flush immediately and not be coalesced
+            ScrollLocation::Start | ScrollLocation::End => {
+                let mut events = self.flush();
+                events.push(event);
+                Some(events)
+            }
+            ScrollLocation::Delta(delta) => {
+                match self.pending_by_cursor.get_mut(&event.cursor) {
+                    Some(existing) => {
+                        // Coalesce: combine deltas using weighted average
+                        if let ScrollLocation::Delta(existing_delta) = existing.scroll_location {
+                            let new_count = existing.event_count + event.event_count;
+                            let old_scale = Scale::<f32, (), ()>::new(existing.event_count as f32);
+                            let new_scale = Scale::<f32, (), ()>::new(new_count as f32);
 
-        if !self.config.enabled {
-            // Coalescing disabled, create single-event batch
-            self.pending.push(CoalescedScrollEvent::new(delta, cursor));
-            return;
-        }
+                            // Average the deltas (same logic as process_pending_scroll_events)
+                            existing.scroll_location = ScrollLocation::Delta(
+                                (existing_delta * old_scale.0 + delta * event.event_count as f32) / new_scale.0
+                            );
+                            existing.event_count = new_count;
+                        }
+                    }
+                    None => {
+                        self.pending_by_cursor.insert(event.cursor, event);
+                    }
+                }
 
-        // Try to coalesce with existing pending event at similar cursor position
-        for pending in self.pending.iter_mut() {
-            if pending.try_coalesce(delta, cursor) {
-                self.stats.events_saved += 1;
-                log::trace!(
-                    "Coalesced scroll event (now {} events in batch)",
-                    pending.event_count
-                );
-                return;
+                // Flush if we've accumulated too many different cursor positions
+                if self.pending_by_cursor.len() >= self.max_coalesced_events {
+                    Some(self.flush())
+                } else {
+                    None
+                }
             }
         }
 
-        // No suitable event to coalesce with, create new one
-        self.pending.push(CoalescedScrollEvent::new(delta, cursor));
+    /// Drain all coalesced events
+    pub fn flush(&mut self) -> Vec<ScrollEvent> {
+        self.pending_by_cursor.drain().map(|(_, event)| event).collect()
     }
 
-    /// Flush all pending events that should be processed
-    pub fn flush(&mut self) -> Vec<CoalescedScrollEvent> {
-        let (ready, pending): (Vec<_>, Vec<_>) =
-            self.pending.drain(..).partition(|e| e.should_flush());
-
-        self.pending = pending;
-        self.stats.coalesced_events += ready.len() as u64;
-
-        if !ready.is_empty() {
-            log::trace!(
-                "Flushing {} coalesced scroll events (ratio: {:.2}x)",
-                ready.len(),
-                self.stats.coalescing_ratio()
-            );
-        }
-
-        ready
-    }
-
-    /// Force flush all pending events (e.g., on frame boundary)
-    pub fn flush_all(&mut self) -> Vec<CoalescedScrollEvent> {
-        self.stats.coalesced_events += self.pending.len() as u64;
-        std::mem::take(&mut self.pending)
+    /// Drain coalesced events, returning them for processing
+    pub fn drain_coalesced(&mut self) -> Vec<ScrollEvent> {
+        self.flush()
     }
 
     /// Check if there are any pending events
     pub fn has_pending(&self) -> bool {
-        !self.pending.is_empty()
+        !self.pending_by_cursor.is_empty()
     }
 
-    /// Get current coalescing statistics
-    pub fn stats(&self) -> &CoalescingStats {
-        &self.stats
-    }
-
-    /// Get mutable reference to configuration
-    pub fn config_mut(&mut self) -> &mut ScrollCoalescerConfig {
-        &mut self.config
-    }
-}
-
-/// Scroll location for WebRender
-#[derive(Clone, Debug)]
-pub enum ScrollLocation {
-    /// Scroll by a delta amount
-    Delta(Vector2D<f32>),
-    /// Scroll to reveal a specific point
-    Start(DeviceIntPoint),
-}
-
-impl From<CoalescedScrollEvent> for ScrollLocation {
-    fn from(event: CoalescedScrollEvent) -> Self {
-        ScrollLocation::Delta(event.delta)
+    /// Get the number of pending cursor positions
+    pub fn pending_count(&self) -> usize {
+        self.pending_by_cursor.len()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use webrender_api::units::LayoutVector2D;
 
-    #[test]
-    fn test_single_event_no_coalescing() {
-        let mut coalescer = ScrollCoalescer::new();
-        coalescer.add_event(Vector2D::new(0.0, 10.0), DeviceIntPoint::new(100, 100));
-
-        assert!(coalescer.has_pending());
-        let events = coalescer.flush_all();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].event_count, 1);
+    fn make_delta_event(dx: f32, dy: f32, x: i32, y: i32) -> ScrollEvent {
+        ScrollEvent::new(
+            ScrollLocation::Delta(LayoutVector2D::new(dx, dy)),
+            DeviceIntPoint::new(x, y),
+        )
     }
 
     #[test]
-    fn test_coalescing_same_position() {
-        let mut coalescer = ScrollCoalescer::new();
-        let cursor = DeviceIntPoint::new(100, 100);
+    fn test_single_delta_event_no_flush() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        let result = coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        assert!(result.is_none());
+        assert!(coalescer.has_pending());
+        assert_eq!(coalescer.pending_count(), 1);
+    }
 
-        // Add multiple events at same position
+    #[test]
+    fn test_coalescing_same_cursor_position() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        
+        // Add 5 events at the same cursor position
         for _ in 0..5 {
-            coalescer.add_event(Vector2D::new(0.0, 10.0), cursor);
+            coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
         }
-
-        let events = coalescer.flush_all();
+        
+        // Should only have 1 pending position
+        assert_eq!(coalescer.pending_count(), 1);
+        
+        let events = coalescer.flush();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_count, 5);
-        assert_eq!(events[0].delta.y, 50.0); // 5 * 10.0
+        
+        // Check delta was averaged: (10+10+10+10+10)/5 = 10
+        if let ScrollLocation::Delta(delta) = events[0].scroll_location {
+            assert!((delta.y - 10.0).abs() < 0.001);
+        } else {
+            panic!("Expected Delta");
+        }
     }
 
     #[test]
-    fn test_no_coalescing_different_positions() {
-        let mut coalescer = ScrollCoalescer::new();
-
-        // Add events at very different positions
-        coalescer.add_event(Vector2D::new(0.0, 10.0), DeviceIntPoint::new(0, 0));
-        coalescer.add_event(Vector2D::new(0.0, 10.0), DeviceIntPoint::new(500, 500));
-
-        let events = coalescer.flush_all();
+    fn test_different_cursor_positions_not_coalesced() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        
+        coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        coalescer.add_event(make_delta_event(0.0, 20.0, 200, 200));
+        
+        assert_eq!(coalescer.pending_count(), 2);
+        
+        let events = coalescer.flush();
         assert_eq!(events.len(), 2);
     }
 
     #[test]
-    fn test_max_coalesced_events() {
-        let mut coalescer = ScrollCoalescer::new();
-        let cursor = DeviceIntPoint::new(100, 100);
-
-        // Add more events than the limit
-        for _ in 0..15 {
-            coalescer.add_event(Vector2D::new(0.0, 10.0), cursor);
-        }
-
-        let events = coalescer.flush_all();
-        // Should have split into multiple batches
-        assert!(events.len() >= 1);
-        assert!(events.iter().all(|e| e.event_count <= MAX_COALESCED_EVENTS));
+    fn test_start_event_triggers_flush() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        
+        // Add a delta event first
+        coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        assert_eq!(coalescer.pending_count(), 1);
+        
+        // Add a Start event - should flush pending and include Start
+        let start_event = ScrollEvent::new(ScrollLocation::Start, DeviceIntPoint::new(100, 100));
+        let result = coalescer.add_event(start_event);
+        
+        assert!(result.is_some());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 2); // 1 pending delta + 1 start
+        assert!(matches!(events[1].scroll_location, ScrollLocation::Start));
+        
+        // Coalescer should be empty now
+        assert!(!coalescer.has_pending());
     }
 
     #[test]
-    fn test_coalescing_disabled() {
-        let config = ScrollCoalescerConfig {
-            enabled: false,
-            ..Default::default()
-        };
-        let mut coalescer = ScrollCoalescer::with_config(config);
-        let cursor = DeviceIntPoint::new(100, 100);
-
-        for _ in 0..5 {
-            coalescer.add_event(Vector2D::new(0.0, 10.0), cursor);
-        }
-
-        let events = coalescer.flush_all();
-        assert_eq!(events.len(), 5); // No coalescing
+    fn test_end_event_triggers_flush() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        
+        coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        
+        let end_event = ScrollEvent::new(ScrollLocation::End, DeviceIntPoint::new(100, 100));
+        let result = coalescer.add_event(end_event);
+        
+        assert!(result.is_some());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[1].scroll_location, ScrollLocation::End));
     }
 
     #[test]
-    fn test_statistics() {
-        let mut coalescer = ScrollCoalescer::new();
-        let cursor = DeviceIntPoint::new(100, 100);
+    fn test_threshold_flush() {
+        let mut coalescer = ScrollCoalescer::new(3); // Low threshold for testing
+        
+        // Add events at different cursor positions
+        coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        coalescer.add_event(make_delta_event(0.0, 10.0, 200, 200));
+        
+        // Third position should trigger threshold flush
+        let result = coalescer.add_event(make_delta_event(0.0, 10.0, 300, 300));
+        
+        assert!(result.is_some());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 3);
+        assert!(!coalescer.has_pending());
+    }
 
-        for _ in 0..5 {
-            coalescer.add_event(Vector2D::new(0.0, 10.0), cursor);
-        }
+    #[test]
+    fn test_event_count_tracking() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        
+        // Manually set event_count to simulate multiple OS events
+        let mut event1 = make_delta_event(0.0, 5.0, 100, 100);
+        event1.event_count = 2;
+        
+        let mut event2 = make_delta_event(0.0, 10.0, 100, 100);
+        event2.event_count = 3;
+        
+        coalescer.add_event(event1);
+        coalescer.add_event(event2);
+        
+        let events = coalescer.flush();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_count, 5); // 2 + 3
+    }
 
-        let _ = coalescer.flush_all();
-
-        assert_eq!(coalescer.stats().total_events, 5);
-        assert_eq!(coalescer.stats().coalesced_events, 1);
-        assert_eq!(coalescer.stats().events_saved, 4);
-        assert!((coalescer.stats().coalescing_ratio() - 5.0).abs() < 0.01);
+    #[test]
+    fn test_drain_coalesced_alias() {
+        let mut coalescer = ScrollCoalescer::new(8);
+        coalescer.add_event(make_delta_event(0.0, 10.0, 100, 100));
+        
+        let events = coalescer.drain_coalesced();
+        assert_eq!(events.len(), 1);
+        assert!(!coalescer.has_pending());
     }
 }
