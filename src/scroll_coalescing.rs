@@ -121,7 +121,7 @@ impl ScrollCoalescer {
 
                             // Average the deltas (same logic as process_pending_scroll_events)
                             existing.scroll_location = ScrollLocation::Delta(
-                                (existing_delta * old_scale.0 + delta) / new_scale.0
+                                (existing_delta * old_scale.0 + delta * event.event_count as f32) / new_scale.0
                             );
                             existing.event_count = new_count;
                         }
