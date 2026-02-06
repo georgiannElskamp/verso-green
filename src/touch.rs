@@ -1,4 +1,4 @@
-use embedder_traits::TouchEventResult;
+use embedder_traits::InputEventResult;
 use embedder_traits::TouchId;
 use euclid::{Point2D, Scale, Vector2D};
 use log::warn;
@@ -214,11 +214,11 @@ impl TouchHandler {
     }
 
     /// Handle event result.
-    pub fn on_event_processed(&mut self, result: TouchEventResult) {
+    pub fn on_event_processed(&mut self, result: InputEventResult) {
         if let WaitingForScript = self.state {
             self.state = match result {
-                TouchEventResult::DefaultPrevented(_, _) => DefaultPrevented,
-                TouchEventResult::DefaultAllowed(_, _) => match self.touch_count() {
+                InputEventResult::DefaultPrevented(_, _) => DefaultPrevented,
+                InputEventResult::DefaultAllowed(_, _) => match self.touch_count() {
                     1 => Touching,
                     2 => Pinching,
                     _ => MultiTouch,
