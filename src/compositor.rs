@@ -50,6 +50,7 @@ use winit::window::WindowId;
 use crate::rendering::RenderingContext;
 use crate::touch::{TouchAction, TouchHandler};\
 use crate::window::Window;
+use crate::scroll_coalescing::ScrollCoalescer;
 
 
 /// Data used to construct a compositor.
@@ -152,6 +153,9 @@ pub struct IOCompositor {
     /// Pending scroll/zoom events.
     pending_scroll_zoom_events: Vec<ScrollZoomEvent>,
 
+
+        /// Scroll event coalescer for batching rapid scroll events
+        scroll_coalescer: ScrollCoalescer,
     /// Used by the logic that determines when it is safe to output an
     /// image for the reftest framework.
     ready_to_save_state: ReadyState,
@@ -422,6 +426,7 @@ impl IOCompositor {
             shutdown_state: ShutdownState::NotShuttingDown,
             frame_tree_id: FrameTreeId(0),
             constellation_chan: state.constellation_chan,
+                        scroll_coalescer: ScrollCoalescer::default(),
             time_profiler_chan: state.time_profiler_chan,
             ready_to_save_state: ReadyState::Unknown,
             webrender: Some(state.webrender),
