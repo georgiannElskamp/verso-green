@@ -243,6 +243,7 @@ jobs:
           sudo installer -pkg develop.pkg -target /
 
       - name: Run sccache-cache
+                if: matrix.platform.arch == 'aarch64'
         uses: Mozilla-Actions/sccache-action@v0.0.8
 
       - name: Install Cargo Packager
