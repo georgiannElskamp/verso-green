@@ -28,11 +28,48 @@ impl ScrollEvent {
     /// Create a new scroll event
     pub fn new(scroll_location: ScrollLocation, cursor: DeviceIntPoint) -> Self {
         Self {
-            scroll_location,
+            delta,
             cursor,
             event_count: 1,
         }
+
+        // Coalesce: accumulate delta
+        self.delta.x += delta.x;
+        self.delta.y += delta.y;
+        self.cursor = cursor;
+        self.event_count += 1;
+        self.last_event_time = std::time::Instant::now();
+
+        true
     }
+
+    /// Check if this coalesced event should be flushed
+    pub fn should_flush(&self) -> bool {
+        self.event_count >= MAX_COALESCED_EVENTS
+            || self.first_event_time.elapsed().as_millis() as u64 > MAX_COALESCE_TIME_MS
+    }
+
+    /// Get the average delta per event (for velocity calculations)
+    pub fn average_delta(&self) -> Vector2D<f32> {
+        if self.event_count == 0 {
+            return Vector2D::zero();
+        }
+        Vector2D::new(
+            self.delta.x / self.event_count as f32,
+            self.delta.y / self.event_count as f32,
+        )
+    }
+}
+
+/// Scroll event coalescer that batches scroll events
+#[derive(Debug, Default)]
+pub struct ScrollCoalescer {
+    /// Pending coalesced events by cursor region
+    pending: Vec<CoalescedScrollEvent>,
+    /// Configuration
+    config: ScrollCoalescerConfig,
+    /// Statistics
+    stats: CoalescingStats,
 }
 
 /// Coalesces scroll events by cursor position before adding to pending events.
@@ -102,7 +139,6 @@ impl ScrollCoalescer {
                 }
             }
         }
-    }
 
     /// Drain all coalesced events
     pub fn flush(&mut self) -> Vec<ScrollEvent> {

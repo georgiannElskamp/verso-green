@@ -67,6 +67,17 @@ bluetooth = [
     "script_traits/bluetooth",
 ]
 background_hang_monitor = ["background_hang_monitor/sampler"]
+
+# WebGL feature - enables WebGL rendering support
+# This feature enables WebGL context creation and rendering through the canvas element.
+# When enabled, WebGL content can be rendered and composited with WebRender.
+webgl = [
+    "dep:webgpu",
+    "dep:webgpu_traits",
+    "script/webgl",
+    "canvas/webgl",
+]
+
 default = ["bluetooth", "background_hang_monitor"]
 packager = ["dep:cargo-packager-resource-resolver"]
 flatpak = []
@@ -106,33 +117,35 @@ uuid = { workspace = true }
 rfd = "0.15"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 tokio = { version = "1", features = ["full"] }
-# Servo repo crates
-background_hang_monitor = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-base = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-bluetooth = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
-bluetooth_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e", optional = true }
-canvas = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-compositing_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-constellation = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-constellation_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-devtools = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-embedder_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-fonts = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-layout_thread_2020 = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-media = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-net = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-net_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-profile = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-profile_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-script = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-script_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-servo_allocator = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-servo_config = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-servo_geometry = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-servo_url = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webdriver_server = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
-webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "5e2d42e" }
+# Servo repo crates - Updated to e8aa7d51ba663e327092434723e8aefb59080653
+background_hang_monitor = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+base = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+bluetooth = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653", optional = true }
+bluetooth_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653", optional = true }
+canvas = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+# Renamed: compositing_traits -> paint_api
+paint_api = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+constellation = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+constellation_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+devtools = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+embedder_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+fonts = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+layout_thread_2020 = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+media = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+net = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+net_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+profile = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+profile_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+script = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+script_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+servo_allocator = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+servo_config = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+servo_geometry = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+servo_url = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+webdriver_server = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653" }
+# WebGL/WebGPU dependencies (optional, enabled by webgl feature)
+webgpu = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653", optional = true }
+webgpu_traits = { git = "https://github.com/servo/servo.git", rev = "e8aa7d51ba663e327092434723e8aefb59080653", optional = true }
 # Servo org crates
 servo-media = { git = "https://github.com/servo/media" }
 servo-media-dummy = { git = "https://github.com/servo/media" }
@@ -148,6 +161,11 @@ cargo-packager-resource-resolver = { version = "0.1.1", features = [
 chrono = "0.4.41"
 percent-encoding = "2.3.1"
 directories = "6.0.0"
+# Test utilities
+owo-colors = "4"
+
+[dev-dependencies]
+mockall = "0.13"
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))'.dependencies]
 notify-rust = { version = "4.11.5", features = ["images"] }
@@ -168,6 +186,11 @@ objc2-app-kit = { version = "0.2", features = [
 [[test]]
 name = "general"
 harness = false
+
+[[test]]
+name = "webgl_tests"
+harness = false
+required-features = ["webgl"]
 
 [profile.release-lto]
 inherits = "release"
