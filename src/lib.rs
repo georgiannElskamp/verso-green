@@ -15,6 +15,8 @@ pub mod errors;
 pub mod keyboard;
 /// Verso's rendering context.
 pub mod rendering;
+/// Shader precaching strategies for WebRender.
+pub mod shader_precache;
 /// Utilities to handle touch inputs and states.
 pub mod touch;
 /// Main entry types and functions.
