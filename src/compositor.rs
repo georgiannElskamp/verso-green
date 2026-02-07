@@ -47,7 +47,7 @@ use webrender_api::{
 use winit::window::WindowId;
 
 use crate::rendering::RenderingContext;
-use crate::touch::{TouchAction, TouchHandler};\
+use crate::touch::{TouchAction, TouchHandler};
 use crate::window::Window;
 use crate::scroll_coalescing::ScrollCoalescer;
 
