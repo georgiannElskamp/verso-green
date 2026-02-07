@@ -5,8 +5,8 @@ use base::id::WebViewId;
 use constellation_traits::{EmbedderToConstellationMessage, TraversalDirection};
 use crossbeam_channel::Sender;
 use embedder_traits::{
-    AlertResponse, AllowOrDeny, ConfirmResponse, ContextMenuResult, EmbedderMsg, LoadStatus,
-    PromptResponse, SimpleDialog, ViewportDetails, WebDriverCommandMsg, WebDriverJSResult,
+    AlertResponse, AllowOrDeny, ConfirmResponse, ContextMenuRequest, EmbedderMsg, LoadStatus,
+    PromptResponse, SimpleDialogRequest, ViewportDetails, WebDriverCommandMsg, WebDriverJSResult,
     WebDriverScriptCommand,
 };
 use euclid::Scale;
