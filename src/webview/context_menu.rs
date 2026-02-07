@@ -1,7 +1,7 @@
 use crate::verso::send_to_constellation;
 use crate::window::Window;
 use constellation_traits::{EmbedderToConstellationMessage, TraversalDirection};
-use embedder_traits::ContextMenuResult;
+use embedder_traits::ContextMenuRequest;
 #[cfg(linux)]
 use embedder_traits::ViewportDetails;
 use ipc_channel::ipc::IpcSender;
@@ -54,7 +54,7 @@ pub struct Menu(pub Vec<MenuItem>);
 #[derive(Clone)]
 pub struct ContextMenu {
     /// IpcSender to send the context menu result to the Servo
-    servo_result_sender: Option<IpcSender<ContextMenuResult>>, // None if sender already sent
+    servo_result_sender: Option<IpcSender<ContextMenuRequest>>, // None if sender already sent
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     menu: MudaMenu,
     #[cfg(linux)]
@@ -73,7 +73,7 @@ impl ContextMenu {
     /// **Platform Specific**
     /// - macOS / Windows: Creates a context menu by muda crate with natvie OS support
     /// - Wayland: Creates a context menu with webview implementation
-    pub fn new_with_menu(servo_result_sender: IpcSender<ContextMenuResult>, menu: Menu) -> Self {
+    pub fn new_with_menu(servo_result_sender: IpcSender<ContextMenuRequest>, menu: Menu) -> Self {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         {
             Self {
@@ -96,7 +96,7 @@ impl ContextMenu {
     }
 
     /// Send the context menu result back to the Servo. Can only be sent once.
-    pub fn send_result_to_servo(&mut self, result: ContextMenuResult) {
+    pub fn send_result_to_servo(&mut self, result: ContextMenuRequest) {
         if let Some(sender) = self.servo_result_sender.take() {
             let _ = sender.send(result);
         }
@@ -105,7 +105,7 @@ impl ContextMenu {
 
 impl Drop for ContextMenu {
     fn drop(&mut self) {
-        self.send_result_to_servo(ContextMenuResult::Dismissed);
+        self.send_result_to_servo(ContextMenuRequest::Dismissed);
     }
 }
 
@@ -172,7 +172,7 @@ impl WebViewMenu for ContextMenu {
     }
 
     fn close(&mut self, sender: &Sender<EmbedderToConstellationMessage>) {
-        self.send_result_to_servo(ContextMenuResult::Dismissed);
+        self.send_result_to_servo(ContextMenuRequest::Dismissed);
         send_to_constellation(
             sender,
             EmbedderToConstellationMessage::CloseWebView(self.webview().webview_id),
@@ -232,7 +232,7 @@ impl Window {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub(crate) fn show_context_menu(
         &self,
-        servo_sender: IpcSender<ContextMenuResult>,
+        servo_sender: IpcSender<ContextMenuRequest>,
     ) -> ContextMenu {
         use muda::MenuItem;
 
@@ -263,7 +263,7 @@ impl Window {
     pub(crate) fn show_context_menu(
         &mut self,
         sender: &Sender<EmbedderToConstellationMessage>,
-        servo_sender: IpcSender<ContextMenuResult>,
+        servo_sender: IpcSender<ContextMenuRequest>,
     ) -> ContextMenu {
         let tab = self.tab_manager.current_tab().unwrap();
         let history = tab.history();
@@ -294,7 +294,7 @@ impl Window {
         sender: &Sender<EmbedderToConstellationMessage>,
         event: MenuEvent,
     ) {
-        context_menu.send_result_to_servo(ContextMenuResult::Dismissed);
+        context_menu.send_result_to_servo(ContextMenuRequest::Dismissed);
         // TODO: should be more flexible to handle different menu items
         let active_tab = self.tab_manager.current_tab().unwrap();
         match event.id().0.as_str() {
