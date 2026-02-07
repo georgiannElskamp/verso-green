@@ -198,6 +198,10 @@ lto = true
 [lints.rust]
 unexpected_cfgs = "allow"
 
-# Patch for zune-jpeg to fix aarch64 unsafe function errors in Rust 2024
+# Patch for zune-jpeg and zune-core to fix Rust 2024 edition / aarch64 unsafe function errors.
+# Both crates must be pinned to the same git rev to avoid type/trait mismatches.
+# When bumping, update both zune-jpeg and zune-core revs together.
 [patch.crates-io]
-zune-jpeg = { git = "https://github.com/etemesi254/zune-image.git" }
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image.git", rev = "7cb6c7d" }
+zune-core = { git = "https://github.com/etemesi254/zune-image.git", rev = "7cb6c7d" }
+
