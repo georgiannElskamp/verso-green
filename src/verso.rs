@@ -1,5 +1,5 @@
-layout::LayoutFactoryImpluse std::{
-    collections::HashMap,
+use layout::LayoutFactoryImpl;
+use std::{    collections::HashMap,
     fmt::Debug,
     sync::{Arc, atomic::Ordering},
 };
@@ -19,7 +19,7 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use devtools;
 use embedder_traits::{
     AllowOrDeny, EmbedderMsg, EmbedderProxy, EventLoopWaker, PromptResponse, WebResourceResponse,
-    WebResourceResponseMsg, user_content_manager::UserContentManager,
+    WebResourceResponseMsg, user_contents::UserContentManager,
 };
 use euclid::Scale;
 use fonts::SystemFontService;
@@ -289,9 +289,9 @@ impl Verso {
             public_resource_threads.clone(),
         );
 
-        let mut user_content_manager = UserContentManager::new();
+        let mut user_contents = UserContentManager::new();
         for script in user_scripts {
-            user_content_manager.add_script(script);
+            user_contents.add_script(script);
         }
 
         // Create layout factory
@@ -311,7 +311,7 @@ impl Verso {
             webxr_registry: None,
             webgl_threads: None,
             webrender_external_images: external_images,
-            user_content_manager,
+            user_contents,
         };
 
         // Create constellation thread
