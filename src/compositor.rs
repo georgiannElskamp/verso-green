@@ -7,18 +7,17 @@ use std::time::{Duration, Instant};
 use base::cross_process_instant::CrossProcessInstant;
 use base::id::{PainterId, PipelineId, WebViewId};
 use base::{Epoch, WebRenderEpochToU16};
-use paint_api::display_list::{PaintDisplayListInfo, HitTestInfo, ScrollTree};
+use paint_api::display_list::{PaintDisplayListInfo, ScrollTree};
 use paint_api::{
     CompositionPipeline, PaintMessage, PaintProxy, ImageUpdate, SendableFrameTree,
 };
 use constellation_traits::{
-    AnimationTickType, EmbedderToConstellationMessage, PaintMetricEvent, ScrollState,
-    WindowSizeType,
+    EmbedderToConstellationMessage, PaintMetricEvent,    WindowSizeType,
 };
 use crossbeam_channel::{Receiver, Sender};
 use dpi::PhysicalSize;
 use embedder_traits::{
-    AnimationState, CompositorHitTestResult, Cursor, InputEvent, MouseButton, MouseButtonAction,
+    AnimationState, PaintHitTestResult, Cursor, InputEvent, MouseButton, MouseButtonAction,
     MouseButtonEvent, MouseMoveEvent, TouchEvent, TouchEventType, TouchId, UntrustedNodeAddress,
     ViewportDetails,
 };
@@ -461,7 +460,7 @@ impl IOCompositor {
         self.rendering_context.size2d()
     }
 
-    pub(crate) fn update_cursor(&mut self, pos: DevicePoint, result: &CompositorHitTestResult) {
+    pub(crate) fn update_cursor(&mut self, pos: DevicePoint, result: &PaintHitTestResult) {
         self.cursor_pos = pos;
         let cursor = match result.cursor {
             Some(cursor) if cursor != self.cursor => cursor,
@@ -1478,7 +1477,7 @@ impl IOCompositor {
             .map(|pipeline| pipeline.webview_id)
     }
 
-    fn hit_test_at_point(&self, point: DevicePoint) -> Option<CompositorHitTestResult> {
+    fn hit_test_at_point(&self, point: DevicePoint) -> Option<PaintHitTestResult> {
         self.hit_test_at_point_with_flags_and_pipeline(point, HitTestFlags::empty(), None)
             .first()
             .cloned()
@@ -1489,7 +1488,7 @@ impl IOCompositor {
         point: DevicePoint,
         flags: HitTestFlags,
         pipeline_id: Option<WebRenderPipelineId>,
-    ) -> Vec<CompositorHitTestResult> {
+    ) -> Vec<PaintHitTestResult> {
         // DevicePoint and WorldPoint are the same for us.
         let world_point = WorldPoint::from_untyped(point.to_untyped());
         let results =
@@ -1515,7 +1514,7 @@ impl IOCompositor {
                 }
 
                 let info = &details.hit_test_items[item.tag.0 as usize];
-                Some(CompositorHitTestResult {
+                Some(PaintHitTestResult {
                     pipeline_id,
                     point_in_viewport: item.point_in_viewport.to_untyped(),
                     point_relative_to_item: item.point_relative_to_item.to_untyped(),
@@ -1786,7 +1785,7 @@ impl IOCompositor {
         // This is needed to propagate the scroll events from a pipeline representing an iframe to
         // its ancestor pipelines.
         let mut previous_pipeline_id = None;
-        for CompositorHitTestResult {
+        for PaintHitTestResult {
             pipeline_id,
             scroll_tree_node,
             ..
