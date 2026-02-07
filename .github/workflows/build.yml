@@ -175,9 +175,8 @@ jobs:
         run: |
           choco upgrade llvm
 
-                - name: Install MozillaBuild
+      - name: Install MozillaBuild
         run: choco install mozilla-build -y
-
       - name: Run sccache-cache
         uses: Mozilla-Actions/sccache-action@v0.0.8
 
