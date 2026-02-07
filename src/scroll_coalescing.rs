@@ -101,6 +101,7 @@ impl ScrollCoalescer {
                 }
             }
         }
+            }
 
     /// Drain all coalesced events
     pub fn flush(&mut self) -> Vec<ScrollEvent> {
