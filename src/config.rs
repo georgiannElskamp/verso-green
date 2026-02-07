@@ -5,7 +5,7 @@ use std::{
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use embedder_traits::resources::{self, Resource, ResourceReaderMethods};
-use embedder_traits::user_content_manager::UserScript as ServoUserScript;
+use embedder_traits::user_contents::UserScript as ServoUserScript;
 use headers::{ContentType, HeaderMapExt};
 use net::protocols::{ProtocolHandler, ProtocolRegistry};
 use net_traits::{
@@ -14,7 +14,7 @@ use net_traits::{
     response::{Response, ResponseBody},
 };
 use servo_config::{
-    opts::{Opts, OutputOptions, set_options},
+    opts::{Opts, OutputOptions},
     prefs::Preferences,
 };
 use versoview_messages::{ConfigFromController, UserScript};
