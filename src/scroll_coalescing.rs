@@ -32,8 +32,8 @@ impl ScrollEvent {
             cursor,
             event_count: 1,
         }
+    }
 }
-
 /// Coalesces scroll events by cursor position before adding to pending events.
 ///
 /// Delta events at the same cursor position are combined using weighted averaging.
