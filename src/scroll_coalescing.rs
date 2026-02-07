@@ -28,7 +28,7 @@ impl ScrollEvent {
     /// Create a new scroll event
     pub fn new(scroll_location: ScrollLocation, cursor: DeviceIntPoint) -> Self {
         Self {
-            delta,
+            scroll_location,
             cursor,
             event_count: 1,
         }
