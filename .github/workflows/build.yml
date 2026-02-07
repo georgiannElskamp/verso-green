@@ -175,8 +175,15 @@ jobs:
         run: |
           choco upgrade llvm
 
-      - name: Install MozillaBuild
-        run: choco install mozillabuild -y
+      - name: Install MozTools for mozjs
+        run: |
+          curl -L https://github.com/servo/servo-build-deps/releases/download/msvc-deps/moztools-4.0.zip -o moztools.zip
+          unzip moztools.zip -d C:\\moztools
+          echo "MOZTOOLS_PATH=C:\\moztools\\moztools-4.0" >> $env:GITHUB_ENV
+          echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> $env:GITHUB_ENV
+          echo "CC=clang-cl" >> $env:GITHUB_ENV
+          echo "CXX=clang-cl" >> $env:GITHUB_ENV
+          echo "LD=lld-link" >> $env:GITHUB_ENV
       - name: Run sccache-cache
         uses: Mozilla-Actions/sccache-action@v0.0.8
 
