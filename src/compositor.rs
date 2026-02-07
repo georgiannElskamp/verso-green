@@ -1,3 +1,10 @@
+// TODO(Issue #43): Update compositor.rs for upstream servo API changes
+// This file has ~70 errors that need to be fixed:
+// - Remove handlers for deleted PaintMessage variants
+// - Update handlers for changed PaintMessage signatures
+// - Fix type mismatches (WebViewPoint vs DevicePoint, Epoch conversions)
+// See: https://github.com/georgiannElskamp/verso-green/issues/43
+
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::rc::Rc;
