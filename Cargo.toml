@@ -10,7 +10,7 @@ repository = "https://github.com/versotile-org/verso"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
-ipc-channel = "0.19"
+ipc-channel = "0.20.2"
 bincode = "1"
 url = { version = "2.5.2", features = ["serde"] }
 log = "0.4"
@@ -95,7 +95,7 @@ gleam = "0.15"
 glutin = "0.32.0"
 glutin-winit = "0.5.0"
 ipc-channel = { workspace = true }
-keyboard-types = "0.7"
+keyboard-types = { version = "0.8.3", features = ["serde", "webdriver"] }
 log = { workspace = true }
 raw-window-handle = { version = "0.6", features = ["std"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"] }
@@ -149,9 +149,9 @@ servo-media = { git = "https://github.com/servo/media" }
 servo-media-dummy = { git = "https://github.com/servo/media" }
 stylo = { git = "https://github.com/servo/stylo", rev = "fce45cfa72008327d714575913bc9c968fa1446c" }
 stylo_traits = { git = "https://github.com/servo/stylo", rev = "fce45cfa72008327d714575913bc9c968fa1446c" }
-webrender = { git = "https://github.com/servo/webrender", branch = "0.66", features = ["capture"] }
-webrender_api = { git = "https://github.com/servo/webrender", branch = "0.66" }
-wr_malloc_size_of = { git = "https://github.com/servo/webrender", branch = "0.66" }
+webrender = { git = "https://github.com/servo/webrender", branch = "0.68", features = ["capture"] }
+webrender_api = { git = "https://github.com/servo/webrender", branch = "0.68" }
+wr_malloc_size_of = { git = "https://github.com/servo/webrender", branch = "0.68" }
 # Packager feature
 cargo-packager-resource-resolver = { version = "0.1.1", features = [
   "auto-detect-format",
