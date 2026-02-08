@@ -1,4 +1,4 @@
-use keyboard_types::{Code, Key, KeyState, KeyboardEvent, Location, Modifiers};
+use keyboard_types::{Code, Key, KeyState, KeyboardEvent, Location, Modifiers, NamedKey as KbNamedKey};
 use log::info;
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key as LogicalKey, KeyCode, ModifiersState, NamedKey, PhysicalKey};
@@ -38,7 +38,7 @@ macro_rules! logical_to_winit_key {
     };
 
     (@opt $variant: ident) => {
-        Key::$variant
+        Key::Named(KbNamedKey::$variant)
     };
 
     ($key: ident $(,$variant: ident $(=> $matchto: expr)?)+) => {

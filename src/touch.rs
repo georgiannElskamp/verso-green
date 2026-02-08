@@ -217,8 +217,8 @@ impl TouchHandler {
     pub fn on_event_processed(&mut self, result: InputEventResult) {
         if let WaitingForScript = self.state {
             self.state = match result {
-                InputEventResult::DefaultPrevented(_, _) => DefaultPrevented,
-                InputEventResult::DefaultAllowed(_, _) => match self.touch_count() {
+                InputEventResult::DefaultPrevented => DefaultPrevented,
+                InputEventResult::DefaultAllowed => match self.touch_count() {
                     1 => Touching,
                     2 => Pinching,
                     _ => MultiTouch,
