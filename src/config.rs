@@ -1,9 +1,9 @@
-// Other imports
-use net_traits::NetworkError;
+// Fix for syntax error in src/config.rs:8
+// Correctly call Response::network_error()
 
-//... rest of the content up to line 420
-// line 420 removed
-
-//... rest of the content up to line 525
-Response::network_error(net_traits::NetworkError::Internal("Opening file failed".to_string()))
-//... rest of the file
+// src/config.rs
+impl Config {
+    pub fn handle_network_error() {
+        Response::network_error();
+    }
+}
