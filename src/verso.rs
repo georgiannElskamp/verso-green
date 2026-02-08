@@ -1117,7 +1117,6 @@ impl webrender::api::RenderNotifier for RenderNotifier {
         document_id: DocumentId,
         _scrolled: bool,
         composite_needed: bool,
-        _frame_publish_id: FramePublishId,
     ) {
         self.compositor_proxy
             .send(PaintMessage::NewWebRenderFrameReady(

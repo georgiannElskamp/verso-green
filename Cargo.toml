@@ -198,3 +198,11 @@ lto = true
 [lints.rust]
 unexpected_cfgs = "allow"
 
+# Patch crates.io dependencies to use git versions
+# This resolves the "two different versions of webrender_api" diamond dependency problem
+# where Servo crates pull webrender_api from crates.io but we need the git version
+[patch.crates-io]
+webrender = { git = "https://github.com/servo/webrender", branch = "0.68" }
+webrender_api = { git = "https://github.com/servo/webrender", branch = "0.68" }
+wr_malloc_size_of = { git = "https://github.com/servo/webrender", branch = "0.68" }
+
