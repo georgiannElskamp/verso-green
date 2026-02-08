@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::c_void;
+
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use base::cross_process_instant::CrossProcessInstant;
+use base::cross_process_instant::CrossProcessInstant as BaseCrossProcessInstant;
 use base::id::{PainterId, PipelineId, WebViewId};
 use base::Epoch;
 use paint_api::display_list::{PaintDisplayListInfo, ScrollTree};
@@ -18,8 +18,8 @@ use crossbeam_channel::{Receiver, Sender};
 use dpi::PhysicalSize;
 use embedder_traits::{
     AnimationState, PaintHitTestResult, Cursor, InputEvent, MouseButton, MouseButtonAction,
-    MouseButtonEvent, MouseMoveEvent, TouchEvent, TouchEventType, TouchId, UntrustedNodeAddress,
-    ViewportDetails,
+    MouseButtonEvent, MouseMoveEvent, TouchEvent, TouchEventType, TouchId,
+    ViewportDetails, WebViewPoint,
 };
 use euclid::{Point2D, Scale, Size2D, Transform3D, Vector2D, vec2};
 use gleam::gl;
@@ -37,7 +37,7 @@ use webrender_api::units::{
 };
 use webrender_api::{
     BorderRadius, BoxShadowClipMode, BuiltDisplayList, ClipMode, ColorF, CommonItemProperties,
-    ComplexClipRegion, DirtyRect, DisplayListPayload, DocumentId, Epoch as WebRenderEpoch,
+    ComplexClipRegion, DisplayListPayload, DocumentId, Epoch as WebRenderEpoch,
     ExternalScrollId, FontInstanceFlags, FontInstanceKey, FontInstanceOptions, FontKey, HitTestFlags,
     ImageKey, PipelineId as WebRenderPipelineId, PropertyBinding, ReferenceFrameKind, RenderReasons,
     ImageDescriptor, ImageData,
@@ -1072,10 +1072,10 @@ impl IOCompositor {
     }
 
     fn dispatch_input_event(&mut self, webview_id: WebViewId, event: InputEvent) {
-        let Some(point) = event.point() else { return; };
+        let Some(point) = event.point().map(|p| match p { WebViewPoint::Device(dp) => dp, WebViewPoint::Page(pp) => DevicePoint::from_untyped(pp.to_untyped()) }) else { return; };
         let Some(result) = self.hit_test_at_point(point) else { return; };
         self.update_cursor(point, &result);
-        if let Err(error) = self.constellation_chan.send(EmbedderToConstellationMessage::ForwardInputEvent(webview_id, event.clone(), Some(result))) {
+        if let Err(error) = self.constellation_chan.send(EmbedderToConstellationMessage::ForwardInputEvent(webview_id, event.clone().into(), Some(result))) {
             warn!("Sending event to constellation failed ({error:?}).");
         }
         if let InputEvent::MouseButton(event) = &event {
@@ -1141,15 +1141,15 @@ impl IOCompositor {
             }
             Some(PaintHitTestResult {
                 pipeline_id,
-                point_in_viewport: item.point_in_viewport.to_untyped(),
+                point_in_viewport: Point2D::from_untyped(item.point_in_viewport.to_untyped()),
             })
         }).collect()
     }
 
     fn send_touch_event(&self, webview_id: WebViewId, event: TouchEvent) {
-        let Some(result) = self.hit_test_at_point(event.point) else { return; };
+        let Some(result) = self.hit_test_at_point(match event.point { WebViewPoint::Device(dp) => dp, WebViewPoint::Page(pp) => DevicePoint::from_untyped(pp.to_untyped()) }) else { return; };
         let event = InputEvent::Touch(event);
-        if let Err(e) = self.constellation_chan.send(EmbedderToConstellationMessage::ForwardInputEvent(webview_id, event, Some(result))) {
+        if let Err(e) = self.constellation_chan.send(EmbedderToConstellationMessage::ForwardInputEvent(webview_id, event.into(), Some(result))) {
             warn!("Sending event to constellation failed ({:?}).", e);
         }
     }
@@ -1165,15 +1165,15 @@ impl IOCompositor {
     }
 
     fn on_touch_down(&mut self, webview_id: WebViewId, event: TouchEvent) {
-        self.touch_handler.on_touch_down(event.id, event.point);
+        self.touch_handler.on_touch_down(event.id, event.point.as_device_point(self.device_pixels_per_page_pixel()));
         self.send_touch_event(webview_id, event);
     }
 
     fn on_touch_move(&mut self, webview_id: WebViewId, event: TouchEvent) {
-        match self.touch_handler.on_touch_move(event.id, event.point) {
+        match self.touch_handler.on_touch_move(event.id, event.point.as_device_point(self.device_pixels_per_page_pixel())) {
             TouchAction::Scroll(delta) => self.on_scroll_window_event(
                 ScrollLocation::Delta(LayoutVector2D::from_untyped(delta.to_untyped())),
-                event.point.cast(),
+                event.point.as_device_point(self.device_pixels_per_page_pixel()).cast(),
             ),
             TouchAction::Zoom(magnification, scroll_delta) => {
                 let cursor = Point2D::new(-1, -1);
@@ -1194,21 +1194,21 @@ impl IOCompositor {
 
     fn on_touch_up(&mut self, webview_id: WebViewId, event: TouchEvent) {
         self.send_touch_event(webview_id, event);
-        if let TouchAction::Click = self.touch_handler.on_touch_up(event.id, event.point) {
-            self.simulate_mouse_click(webview_id, event.point);
+        if let TouchAction::Click = self.touch_handler.on_touch_up(event.id, event.point.as_device_point(self.device_pixels_per_page_pixel())) {
+            self.simulate_mouse_click(webview_id, event.point.as_device_point(self.device_pixels_per_page_pixel()));
         }
     }
 
     fn on_touch_cancel(&mut self, webview_id: WebViewId, event: TouchEvent) {
-        self.touch_handler.on_touch_cancel(event.id, event.point);
+        self.touch_handler.on_touch_cancel(event.id, event.point.as_device_point(self.device_pixels_per_page_pixel()));
         self.send_touch_event(webview_id, event);
     }
 
     fn simulate_mouse_click(&mut self, webview_id: WebViewId, point: DevicePoint) {
         let button = MouseButton::Left;
-        self.dispatch_input_event(webview_id, InputEvent::MouseMove(MouseMoveEvent { point }));
-        self.dispatch_input_event(webview_id, InputEvent::MouseButton(MouseButtonEvent { button, action: MouseButtonAction::Down, point }));
-        self.dispatch_input_event(webview_id, InputEvent::MouseButton(MouseButtonEvent { button, action: MouseButtonAction::Up, point }));
+        self.dispatch_input_event(webview_id, InputEvent::MouseMove(MouseMoveEvent { point: point.into() }));
+        self.dispatch_input_event(webview_id, InputEvent::MouseButton(MouseButtonEvent { button, action: MouseButtonAction::Down, point: point.into() }));
+        self.dispatch_input_event(webview_id, InputEvent::MouseButton(MouseButtonEvent { button, action: MouseButtonAction::Up, point: point.into() }));
     }
 
     pub fn on_scroll_event(&mut self, scroll_location: ScrollLocation, cursor: DeviceIntPoint, action: TouchEventType) {
@@ -1315,11 +1315,14 @@ impl IOCompositor {
         let animation_callbacks_running = self.pipeline_details(pipeline_id).animation_callbacks_running;
         let animations_running = self.pipeline_details(pipeline_id).animations_running;
         if !animation_callbacks_running && !animations_running { return; }
-        let mut tick_type = AnimationTickType::empty();
-        if animations_running { tick_type.insert(AnimationTickType::CSS_ANIMATIONS_AND_TRANSITIONS); }
-        if animation_callbacks_running { tick_type.insert(AnimationTickType::REQUEST_ANIMATION_FRAME); }
-        let msg = EmbedderToConstellationMessage::TickAnimation(pipeline_id, tick_type);
-        if let Err(e) = self.constellation_chan.send(msg) { warn!("Sending tick to constellation failed ({:?}).", e); }
+        // Look up the webview_id for this pipeline and send a tick
+        let webview_id = self.webviews.iter()
+            .find(|(_, &pid)| pid == pipeline_id)
+            .map(|(&wid, _)| wid);
+        if let Some(webview_id) = webview_id {
+            let msg = EmbedderToConstellationMessage::TickAnimation(vec![webview_id]);
+            if let Err(e) = self.constellation_chan.send(msg) { warn!("Sending tick to constellation failed ({:?}).", e); }
+        }
     }
 
     fn device_pixels_per_page_pixel(&self) -> Scale<f32, CSSPixel, DevicePixel> {
@@ -1526,7 +1529,7 @@ impl IOCompositor {
     }
 
     fn send_pending_paint_metrics_messages_after_composite(&mut self) {
-        let paint_time = CrossProcessInstant::now();
+        let paint_time = BaseCrossProcessInstant::now();
         let document_id = self.webrender_document;
         for (_, pipeline_id) in self.webviews.iter_mut() {
             debug_assert!(self.pipeline_details.contains_key(pipeline_id));
