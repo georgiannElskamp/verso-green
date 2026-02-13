@@ -265,7 +265,7 @@ pub fn parse_cli_args() -> Result<CliArgs, getopts::Fail> {
 pub struct Config {
     /// URL to load initially.
     pub url: url::Url,
-    /// Should launch without or without control panel
+    /// Should launch with or without control panel
     pub with_panel: bool,
     /// Window settings for the initial winit window
     pub window_attributes: WindowAttributes,
@@ -329,7 +329,7 @@ impl Config {
             }));
         // set min inner size
         // should be at least able to show the whole control panel
-        // FIXME: url input has weird behavior that will expand lager when having long text
+        // FIXME: url input has weird behavior that will expand larger when having long text
         if with_panel {
             window_attributes = window_attributes.with_min_inner_size(LogicalSize::new(480, 72));
         }
@@ -453,7 +453,7 @@ impl ResourceReaderMethods for ResourceReader {
         let path = self.0.join(resource.filename());
         fs::read(&path).unwrap_or_else(|_| {
             match resource {
-                // Rigppy image is the only one needs to be valid bytes.
+                // Rippy image is the only one needs to be valid bytes.
                 // Others can be empty and Servo will set to default.
                 Resource::RippyPNG => &include_bytes!("../resources/rippy.png")[..],
                 #[cfg(feature = "embed-useragent-stylesheets")]
