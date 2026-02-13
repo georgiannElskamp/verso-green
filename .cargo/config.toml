@@ -1,2 +1,3 @@
 [env]
 RUSTC_BOOTSTRAP = "crown,script,script_bindings,style_tests,mozjs,mozjs_sys"
+RUST_FONTCONFIG_DLOPEN = "1"
